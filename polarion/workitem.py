@@ -111,7 +111,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
                     service_test = self._polarion.getService('TestManagement')
                     self._polarion_test_steps = service_test.getTestSteps(self.uri)
             except Exception as e:
-                logger.debug('Could not fetch test steps for workitem %s: %s', self._id, e)
+                logger.warning('Could not fetch test steps for workitem %s: %s', self._id, e)
             self._parsed_test_steps = None
             if self._polarion_test_steps is not None:
                 if self._polarion_test_steps.keys is not None and self._polarion_test_steps.steps:
@@ -215,7 +215,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         try:
             return self._project.getEnum(f'{self.type.id}-{suffix}')
         except Exception as e:
-            logger.debug('Could not get %s enum: %s', suffix, e)
+            logger.warning('Could not get %s enum: %s', suffix, e)
             return []
 
     def getStatusEnum(self) -> list[str]:
@@ -241,7 +241,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
             service = self._polarion.getService('Tracker')
             return service.getCustomFieldKeys(self.uri)
         except Exception as e:
-            logger.debug('Could not get custom field keys: %s', e)
+            logger.warning('Could not get custom field keys: %s', e)
             return []
 
     def isCustomFieldAllowed(self, key: str) -> bool:
@@ -426,7 +426,6 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         @return: Array of tuple ('link type', Workitem)
         """
         linked_items = []
-        service = self._polarion.getService('Tracker')
         if self.linkedWorkItems is not None:
             for linked_item in self.linkedWorkItems.LinkedWorkItem:
                 if linked_item.role is not None:
@@ -732,7 +731,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
                 # skip private types
                 continue
             # first to a quick type compare to catch any easy differences
-            if type(a[key]) == type(b[key]):
+            if type(a[key]) is type(b[key]):
                 if type(a[key]) in basic_types:
                     # direct compare capable
                     if a[key] != b[key]:

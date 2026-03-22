@@ -8,11 +8,9 @@ from .exceptions import PolarionFieldError
 
 if TYPE_CHECKING:
     from .polarion import Polarion
-    from .project import Project
 
 
 class Creator(ABC):
-    test = 1
 
     @abstractmethod
     def createFromUri(self, polarion: Polarion, project: Any, uri: str) -> Any:

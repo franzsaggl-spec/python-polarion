@@ -30,6 +30,7 @@ dependencies = [
     "zeep",
     "lxml",
     "texttable",
+    "requests",
 ]
 
 [project.urls]
@@ -38,10 +39,17 @@ Homepage = "https://github.com/jesper-raemaekers/python-polarion"
 Documentation = "https://python-polarion.readthedocs.io/"
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = ["pytest", "ruff"]
 
 [tool.setuptools.packages.find]
 include = ["polarion*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests/unit"]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]

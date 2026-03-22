@@ -1,7 +1,4 @@
 # Python-polarion
-[![Build status](https://dev.azure.com/jraemaekers/Python%20Polarion/_apis/build/status/Polarion-Python%20package-CI)](https://dev.azure.com/jraemaekers/Python%20Polarion/_build/latest?definitionId=5)
-![Coverage](https://img.shields.io/azure-devops/coverage/jraemaekers/Python%20Polarion/5)
-![Test](https://img.shields.io/azure-devops/tests/jraemaekers/Python%20Polarion/5)
 [![Documentation Status](https://readthedocs.org/projects/python-polarion/badge/?version=latest)](https://python-polarion.readthedocs.io/en/latest/?badge=latest)
 [![Downloads](https://pepy.tech/badge/polarion)](https://pepy.tech/project/polarion)
 
@@ -80,10 +77,10 @@ The API does not allow access to the project administration.
 
 # Dependencies 
 
-The package uses; requests, urllib3 and zeep.
+The package uses zeep, lxml, texttable, and requests.
 
-It is tested for Python version 3.7 through 3.12.
-Python 3.6 support has been dropped in 1.3.0.
+It is tested for Python version 3.9 through 3.13.
+Python 3.8 support has been dropped in 1.4.0.
 
 # Known issues or missing features
 - No way of knowing the test run possible statuses.

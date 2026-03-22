@@ -198,3 +198,47 @@ def test_repr_contains_id_and_title(mock_polarion, mock_project, mock_workitem_d
     r = repr(wi)
     assert 'WI-001' in r
     assert 'Test workitem' in r
+
+
+# ------------------------------------------------------------------
+# save() when nothing changed
+# ------------------------------------------------------------------
+
+def test_save_no_changes_does_not_call_update(mock_polarion, mock_project, mock_workitem_data):
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    tracker_service = MagicMock()
+    mock_polarion.getService = MagicMock(return_value=tracker_service)
+
+    wi.save()
+    tracker_service.updateWorkItem.assert_not_called()
+
+
+# ------------------------------------------------------------------
+# getLinkedItem returns empty when no links
+# ------------------------------------------------------------------
+
+def test_get_linked_item_empty_when_no_links(mock_polarion, mock_project, mock_workitem_data):
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    wi.linkedWorkItems = None
+    wi.linkedWorkItemsDerived = None
+    assert wi.getLinkedItem() == []
+
+
+# ------------------------------------------------------------------
+# getAssignedUsers returns empty when assignee is None
+# ------------------------------------------------------------------
+
+def test_get_assigned_users_empty_when_none(mock_polarion, mock_project, mock_workitem_data):
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    wi.assignee = None
+    assert wi.getAssignedUsers() == []
+
+
+# ------------------------------------------------------------------
+# getApproverUsers returns empty when approvals is None
+# ------------------------------------------------------------------
+
+def test_get_approver_users_empty_when_none(mock_polarion, mock_project, mock_workitem_data):
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    wi.approvals = None
+    assert wi.getApproverUsers() == []

@@ -4,8 +4,6 @@ import copy
 import os
 from typing import Any, Optional, TYPE_CHECKING
 
-from zeep import xsd
-
 from .base.comments import Comments
 from .base.custom_fields import CustomFields
 from .exceptions import PolarionNotFoundError, PolarionFieldError

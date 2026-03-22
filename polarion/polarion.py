@@ -45,7 +45,7 @@ class Polarion:
     def __init__(self, polarion_url: str, user: str, password: Optional[str] = None, token: Optional[str] = None,
                  static_service_list: bool = False, verify_certificate: Union[bool, str] = True,
                  svn_repo_url: Optional[str] = None, proxy: Optional[str] = None,
-                 request_session: Optional[requests.Session] = None, cache: bool = False) -> None:
+                 cache: bool = False) -> None:
         self.user = user
         self.password = password
         self.token = token
@@ -53,7 +53,6 @@ class Polarion:
         self.verify_certificate = verify_certificate
         self.svn_repo_url = svn_repo_url
         self.proxy = None
-        self.request_session = request_session
         self.cache = cache
         self.transport = None
         if proxy is not None:
@@ -82,7 +81,10 @@ class Polarion:
         Cleanup function to logout when Python is shutting down.
         :return: None
         """
-        self.services['Session']['client'].service.endSession()
+        try:
+            self.services['Session']['client'].service.endSession()
+        except Exception:
+            pass
 
     def _getStaticServices(self) -> None:
         default_services = ['Session', 'Project', 'Tracker',

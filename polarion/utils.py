@@ -1,14 +1,19 @@
+from __future__ import annotations
+
 import re
 from abc import ABC
 from html.parser import HTMLParser
-from polarion.project import Project
+from typing import Optional
 from xml.etree import ElementTree
+
 from texttable import Texttable
+
+from polarion.project import Project
 
 
 class DescriptionParser(HTMLParser, ABC):
 
-    def __init__(self, polarion_project: Project = None):
+    def __init__(self, polarion_project: Optional[Project] = None) -> None:
         """
         A HTMLParser with to cleaen the HTML tags from a string.
         Can lookup Polarion links in HTML, present tables in a readable format and extracts formula's to text
@@ -18,18 +23,18 @@ class DescriptionParser(HTMLParser, ABC):
         super(DescriptionParser, self).__init__()
         self._polarion_project = polarion_project
         self._data = ''
-        self._table_start = None
-        self._table_end = None
+        self._table_start: tuple[int, int] | None = None
+        self._table_end: tuple[int, int] | None = None
 
     @property
-    def data(self):
+    def data(self) -> str:
         """
         The parsed data
         @return: string
         """
         return self._data
 
-    def reset(self):
+    def reset(self) -> None:
         """
         Reset the parsing state
         @return: None
@@ -39,7 +44,7 @@ class DescriptionParser(HTMLParser, ABC):
         self._table_start = None
         self._table_end = None
 
-    def handle_data(self, data):
+    def handle_data(self, data: str) -> None:
         """
         Handles the data within HTML tags
         @param data: the data inside a HTML tag
@@ -49,7 +54,7 @@ class DescriptionParser(HTMLParser, ABC):
         if self._table_start is None:
             self._data += data
 
-    def handle_starttag(self, tag, attrs):
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         """
         Handles the start of a HTML tag. In some cases the start tag is the only tag and then it parses the attributes
         depending on the tag.
@@ -68,7 +73,7 @@ class DescriptionParser(HTMLParser, ABC):
         if tag == 'table':
             self._table_start = self.getpos()
 
-    def handle_endtag(self, tag):
+    def handle_endtag(self, tag: str) -> None:
         """
         Handles the end of a tag.
         @param tag: Name of the tag
@@ -77,7 +82,7 @@ class DescriptionParser(HTMLParser, ABC):
         if tag == 'table':
             self._handle_table()
 
-    def _handle_table(self):
+    def _handle_table(self) -> None:
         """
         Handles the HTML tables. It parses the table to a readable format.
         @return: None
@@ -88,7 +93,7 @@ class DescriptionParser(HTMLParser, ABC):
         correct_lines = table_content[self._table_start[0] - 1:self._table_end[0]]
         # iterate over table elements and parse to 2d array
         table = ElementTree.XML(''.join(correct_lines))
-        content = []
+        content: list[list[str | None]] = []
         for tr in table.iter('tr'):
             content.append([])
             for th in tr.iter('th'):
@@ -99,7 +104,7 @@ class DescriptionParser(HTMLParser, ABC):
         self._table_start = None
         self._table_end = None
 
-    def _handle_polarion_rte_link(self, attributes):
+    def _handle_polarion_rte_link(self, attributes: dict[str, str | None]) -> None:
         """
         Gets either the workitem id from a link (short) or the workitem id and title (long)
         @param attributes: attributes to the link tag
@@ -112,7 +117,7 @@ class DescriptionParser(HTMLParser, ABC):
             linked_item = self._polarion_project.getWorkitem(attributes['data-item-id'])
             self._data += str(linked_item)
 
-    def _handle_polarion_rte_formula(self, attributes):
+    def _handle_polarion_rte_formula(self, attributes: dict[str, str | None]) -> None:
         """
         Gets the formula for a polarion formula tag
         @param attributes: attributes to the formula tag
@@ -120,7 +125,7 @@ class DescriptionParser(HTMLParser, ABC):
         """
         self._data += attributes['data-source']
 
-def save_bytes_as_pdf(input_bytes, filename):
+def save_bytes_as_pdf(input_bytes: bytes, filename: str) -> None:
     """
     Saves bytes returned by exportDocumentToPDF as a pdf.
     :param input_bytes: <'bytes'> object
@@ -131,7 +136,7 @@ def save_bytes_as_pdf(input_bytes, filename):
     with open(filename, 'wb') as f:
         f.write(input_bytes)
 
-def strip_html(raw_html):
+def strip_html(raw_html: str) -> str:
     """
     Strips all HTML tags from HTML code leaving only plain text with no formatting.
     :param raw_html: HTML string

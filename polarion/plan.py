@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from .project import Project
 
 
-class Plan:
+class Plan(PolarionObject):
     """
     A polarion Plan
     """
@@ -33,11 +33,8 @@ class Plan:
         :param new_plan_parent: optional new plan parent
         :param new_plan_template: plan template, defaults in polarion are iteration or release
         """
-        self._polarion = polarion
-        self._project = project
+        super().__init__(polarion, project, id, uri)
         self._polarion_record = polarion_record
-        self._uri = uri
-        self._id = id
 
         if new_plan_id is not None and new_plan_name is not None:
             # get the ID from the plan if the ID if the plan is passed
@@ -58,7 +55,7 @@ class Plan:
 
     def _buildPlanFromPolarion(self) -> None:
         if self._polarion_record is not None and not self._polarion_record.unresolvable:
-            PolarionObject._populate_attrs(self, self._polarion_record)
+            self._populate_attrs(self, self._polarion_record)
             self._original_polarion = copy.deepcopy(self._polarion_record)
         else:
             raise PolarionNotFoundError('Plan not retrieved from Polarion')
@@ -108,7 +105,7 @@ class Plan:
         if any(x.id == workitem.type.id for x in self.allowedTypes.EnumOptionId):
             service = self._polarion.getService('Planning')
             service.addPlanItems(self.uri, [workitem.uri])
-            workitem._reloadFromPolarion()  # noqa: call private to reload from polarion so the plan status is updated
+            workitem._reloadFromPolarion()  # noqa: SLF001 - reload so the plan status is updated
             self._reloadFromPolarion()
         else:
             raise PolarionFieldError(f'Workitem type {workitem.id} is not allowed in this plan')
@@ -121,7 +118,7 @@ class Plan:
         """
         service = self._polarion.getService('Planning')
         service.removePlanItems(self.uri, [workitem.uri])
-        workitem._reloadFromPolarion()  # noqa: call private to reload from polarion so the plan status is updated
+        workitem._reloadFromPolarion()  # noqa: SLF001 - reload so the plan status is updated
         self._reloadFromPolarion()
 
     def addAllowedType(self, type: str) -> None:
@@ -160,7 +157,7 @@ class Plan:
         """
         Update the plan in polarion
         """
-        updated_plan = PolarionObject._build_update_dict(self, self._polarion_record, self._original_polarion)
+        updated_plan = self._build_update_dict(self, self._polarion_record, self._original_polarion)
         if updated_plan:
             updated_plan['uri'] = self.uri
             service = self._polarion.getService('Planning')

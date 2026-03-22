@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from .user import User
 
 
-class Record(PostponeSaveMixin):
+class Record(PolarionObject, PostponeSaveMixin):
     """
     Create a Polarion test record,
 
@@ -35,7 +35,7 @@ class Record(PostponeSaveMixin):
         NOTTESTED = 'not_tested'
 
     def __init__(self, polarion: Polarion, test_run: Testrun, polarion_record: Any, index: int) -> None:
-        self._polarion = polarion
+        super().__init__(polarion, None, None, None)
         self._test_run = test_run
         self._polarion_record = polarion_record
         self._index = index
@@ -43,7 +43,7 @@ class Record(PostponeSaveMixin):
         self._buildWorkitemFromPolarion()
 
     def _buildWorkitemFromPolarion(self) -> None:
-        PolarionObject._populate_attrs(self, self._polarion_record)
+        self._populate_attrs(self, self._polarion_record)
 
         self._testcase = self._polarion_record.testCaseURI
         self._testcase_name = self._testcase.split('}')[1]
@@ -124,8 +124,7 @@ class Record(PostponeSaveMixin):
 
     def setComment(self, comment: str) -> None:
         """
-        tries to get the severity enum of this workitem type
-        When it fails to get it, the list will be empty
+        Set the comment for this record.
 
         :param comment: Comment string, may contain HTML
         """
