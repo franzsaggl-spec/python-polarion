@@ -4,7 +4,7 @@ import re
 import xml.etree.ElementTree as ET
 from datetime import datetime
 
-from .exceptions import PolarionConfigError, PolarionApiError
+from .exceptions import PolarionConfigError
 from .polarion import Polarion
 from .record import Record
 

@@ -1,21 +1,16 @@
 from __future__ import annotations
 
-import logging
 import os
 from enum import Enum
 from typing import Any, Optional, TYPE_CHECKING
 
-import requests
-
-from .exceptions import PolarionNotFoundError, PolarionApiError
+from .exceptions import PolarionNotFoundError
 from .factory import createFromUri
 
 if TYPE_CHECKING:
     from .polarion import Polarion
     from .testrun import Testrun
     from .user import User
-
-logger = logging.getLogger(__name__)
 
 
 class Record(object):
@@ -183,9 +178,7 @@ class Record(object):
         :return: True/False
         :rtype: boolean
         """
-        if self.attachments is not None:
-            return True
-        return False
+        return self.attachments is not None
     
     def getAttachment(self, file_name: str) -> bytes:
         """
@@ -235,7 +228,7 @@ class Record(object):
         :param title: The title of the attachment
         """
         service = self._polarion.getService('TestManagement')
-        file_name = os.path.split(file_path)[1]
+        file_name = os.path.basename(file_path)
         with open(file_path, "rb") as file_content:
             service.addAttachmentToTestRecord(self._test_run.uri, self._index, file_name, title, file_content.read())
         self._reloadFromPolarion()
@@ -250,9 +243,7 @@ class Record(object):
         """
         if self.testStepResults is None:
             return False
-        if self.testStepResults.TestStepResult[step_index].attachments is not None:
-            return True
-        return False
+        return self.testStepResults.TestStepResult[step_index].attachments is not None
     
     def getAttachmentFromTestStep(self, step_index: int, file_name: str) -> bytes:
         """
@@ -306,7 +297,7 @@ class Record(object):
         :param title: The title of the attachment
         """
         service = self._polarion.getService('TestManagement')
-        file_name = os.path.split(file_path)[1]
+        file_name = os.path.basename(file_path)
         with open(file_path, "rb") as file_content:
             service.addAttachmentToTestStep(self._test_run.uri, self._index, step_index, file_name, title, file_content.read())
         self._reloadFromPolarion()
@@ -331,5 +322,4 @@ class Record(object):
     def __repr__(self) -> str:
         return f'{self._testcase_name} in {self._test_run.id} ({self.getResult()} on {self.executed})'
 
-    def __str__(self) -> str:
-        return f'{self._testcase_name} in {self._test_run.id} ({self.getResult()} on {self.executed})'
+    __str__ = __repr__

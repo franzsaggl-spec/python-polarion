@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import logging
 from abc import ABC
 from typing import Optional
 
 from polarion.base.polarion_object import PolarionObject
 from polarion.exceptions import PolarionFieldError, PolarionApiError
-
-logger = logging.getLogger(__name__)
 
 
 class Comments(PolarionObject, ABC):
@@ -23,7 +20,7 @@ class Comments(PolarionObject, ABC):
         :param parent: A parent comment, if none provided it's a root comment.
         """
         service = self._polarion.getService('Tracker')
-        if type not in ['html', 'plain']:
+        if type not in ('html', 'plain'):
             raise PolarionFieldError('Type must be either html or plain.')
         if hasattr(service, 'addComment'):
             if parent is None:

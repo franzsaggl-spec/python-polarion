@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from typing import Any, Optional, TYPE_CHECKING
 
 from .exceptions import PolarionNotFoundError
@@ -8,8 +7,6 @@ from .factory import Creator
 
 if TYPE_CHECKING:
     from .polarion import Polarion
-
-logger = logging.getLogger(__name__)
 
 
 class User(object):
@@ -39,15 +36,14 @@ class User(object):
             raise PolarionNotFoundError('User not retrieved from Polarion')
 
     def __eq__(self, other: object) -> bool:
-        if self.id == other.id:
-            return True
-        return False
+        if not isinstance(other, User):
+            return NotImplemented
+        return self.id == other.id
 
     def __repr__(self) -> str:
         return f'{self.name} ({self.id})'
 
-    def __str__(self) -> str:
-        return f'{self.name} ({self.id})'
+    __str__ = __repr__
 
 
 class UserCreator(Creator):

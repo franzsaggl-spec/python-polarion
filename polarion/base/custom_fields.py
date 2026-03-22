@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from abc import ABC
 from typing import Any, Optional, TYPE_CHECKING
 
@@ -10,11 +9,9 @@ from polarion.exceptions import PolarionFieldError
 if TYPE_CHECKING:
     from polarion.polarion import Polarion
 
-logger = logging.getLogger(__name__)
-
 
 class CustomFields(PolarionObject, ABC):
-    def __init__(self, polarion: Polarion, project: Optional[Any], _id: Optional[str] = None, uri: Optional[str] = None) -> None:
+    def __init__(self, polarion: Polarion, project: Any, _id: Optional[str] = None, uri: Optional[str] = None) -> None:
         super().__init__(polarion, project, _id, uri)
         self.customFields: Optional[Any] = None
 

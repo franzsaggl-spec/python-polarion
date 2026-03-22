@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import logging
 from datetime import date, datetime
 from typing import Any, Optional, TYPE_CHECKING
 
@@ -12,8 +11,6 @@ from .workitem import Workitem
 if TYPE_CHECKING:
     from .polarion import Polarion
     from .project import Project
-
-logger = logging.getLogger(__name__)
 
 
 class Plan(object):
@@ -60,14 +57,12 @@ class Plan(object):
 
     def _buildPlanFromPolarion(self) -> None:
         if self._polarion_record is not None and not self._polarion_record.unresolvable:
-            # parse all polarion attributes to this class
-            self._original_polarion = copy.deepcopy(self._polarion_record)
             for attr, value in self._polarion_record.__dict__.items():
                 for key in value:
                     setattr(self, key, value[key])
+            self._original_polarion = copy.deepcopy(self._polarion_record)
         else:
             raise PolarionNotFoundError('Plan not retrieved from Polarion')
-        self._original_polarion = copy.deepcopy(self._polarion_record)
 
     def setDueDate(self, date: date | datetime) -> None:
         """
@@ -206,18 +201,16 @@ class Plan(object):
         service = self._polarion.getService('Planning')
         self._polarion_record = service.getPlanByUri(self._polarion_record.uri)
         self._buildPlanFromPolarion()
-        self._original_polarion = copy.deepcopy(self._polarion_record)
 
     def __eq__(self, other: object) -> bool:
-        if self.id == other.id:
-            return True
-        return False
+        if not isinstance(other, Plan):
+            return NotImplemented
+        return self.id == other.id
 
     def __repr__(self) -> str:
         return f'{self.name} ({self.id})'
 
-    def __str__(self) -> str:
-        return f'{self.name} ({self.id})'
+    __str__ = __repr__
 
 
 class PlanCreator(Creator):

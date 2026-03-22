@@ -1,17 +1,14 @@
 from __future__ import annotations
 
-import logging
 import re
 from abc import ABC, abstractmethod
 from typing import Any, TYPE_CHECKING
 
-from .exceptions import PolarionNotFoundError, PolarionFieldError
+from .exceptions import PolarionFieldError
 
 if TYPE_CHECKING:
     from .polarion import Polarion
     from .project import Project
-
-logger = logging.getLogger(__name__)
 
 
 class Creator(ABC):
@@ -35,7 +32,7 @@ def createFromUri(polarion: Polarion, project: Any, uri: str) -> Any:
         creator = creator_list[type_name]()
         return creator.createFromUri(polarion, project, uri)
     else:
-        raise PolarionNotFoundError(f'type {type_name} not supported')
+        raise PolarionFieldError(f'type {type_name} not supported')
 
 
 def _subterraUrl(uri: str) -> str:

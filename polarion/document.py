@@ -219,8 +219,7 @@ class Document(CustomFields):
     def __repr__(self) -> str:
         return f'Polarion document {self.title} in {self.moduleFolder}'
 
-    def __str__(self) -> str:
-        return f'Polarion document {self.title} in {self.moduleFolder}'
+    __str__ = __repr__
 
 
 class DocumentCreator(Creator):

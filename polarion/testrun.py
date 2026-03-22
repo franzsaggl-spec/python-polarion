@@ -1,24 +1,20 @@
 from __future__ import annotations
 
 import copy
-import logging
 import os
 from typing import Any, Optional, TYPE_CHECKING
 
-import requests
 from zeep import xsd
 
 from .base.comments import Comments
 from .base.custom_fields import CustomFields
-from .exceptions import PolarionNotFoundError, PolarionFieldError, PolarionApiError
+from .exceptions import PolarionNotFoundError, PolarionFieldError
 from .record import Record
 from .factory import Creator
 
 if TYPE_CHECKING:
     from .polarion import Polarion
     from .workitem import Workitem
-
-logger = logging.getLogger(__name__)
 
 
 class Testrun(CustomFields, Comments):
@@ -88,9 +84,7 @@ class Testrun(CustomFields, Comments):
         :return: True/False
         :rtype: boolean
         """
-        if id in self._record_dict:
-            return True
-        return False
+        return id in self._record_dict
 
     def getTestCase(self, id: str) -> Optional[Record]:
         """
@@ -110,9 +104,7 @@ class Testrun(CustomFields, Comments):
         :return: True/False
         :rtype: boolean
         """
-        if self.attachments is not None:
-            return True
-        return False
+        return self.attachments is not None
 
     def getAttachment(self, file_name: str) -> bytes:
         """
@@ -127,7 +119,7 @@ class Testrun(CustomFields, Comments):
 
         if at is not None:
             return self._polarion.downloadFromSvn(at.url)
-        raise PolarionApiError(f'Could not download attachment {file_name}')
+        raise PolarionNotFoundError(f'Could not find attachment {file_name}')
 
     def saveAttachmentAsFile(self, file_name: str, file_path: str) -> None:
         """
@@ -158,7 +150,7 @@ class Testrun(CustomFields, Comments):
         :param title: The title of the attachment
         """
         service = self._polarion.getService('TestManagement')
-        file_name = os.path.split(file_path)[1]
+        file_name = os.path.basename(file_path)
         with open(file_path, "rb") as file_content:
             service.addAttachmentToTestRun(self.uri, file_name, title, file_content.read())
         self._reloadFromPolarion()
@@ -181,7 +173,7 @@ class Testrun(CustomFields, Comments):
         :param title: The title of the attachment
         """
         service = self._polarion.getService('TestManagement')
-        file_name = os.path.split(file_path)[1]
+        file_name = os.path.basename(file_path)
         with open(file_path, "rb") as file_content:
             service.updateTestRunAttachment(self.uri, file_name, title, file_content.read())
         self._reloadFromPolarion()
@@ -210,8 +202,7 @@ class Testrun(CustomFields, Comments):
     def __repr__(self) -> str:
         return f'Testrun {self.id} ({self.title}) created {self.created}'
 
-    def __str__(self) -> str:
-        return f'Testrun {self.id} ({self.title}) created {self.created}'
+    __str__ = __repr__
 
 
 class TestrunCreator(Creator):

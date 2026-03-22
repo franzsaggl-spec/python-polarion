@@ -126,7 +126,6 @@ class Workitem(CustomFields, Comments):
             self._parsed_test_steps = None
             if self._polarion_test_steps is not None:
                 if self._polarion_test_steps.keys is not None and self._polarion_test_steps.steps:
-                    # oh god, parse the test steps...
                     columns = []
                     self._parsed_test_steps = []
                     for col in self._polarion_test_steps.keys.EnumOptionId:
@@ -514,9 +513,7 @@ class Workitem(CustomFields, Comments):
         :return: True/False
         :rtype: boolean
         """
-        if self.attachments is not None:
-            return True
-        return False
+        return self.attachments is not None
 
     def getAttachment(self, id: str) -> Any:
         """
@@ -558,7 +555,7 @@ class Workitem(CustomFields, Comments):
         :param title: The title of the attachment
         """
         service = self._polarion.getService('Tracker')
-        file_name = os.path.split(file_path)[1]
+        file_name = os.path.basename(file_path)
         with open(file_path, "rb") as file_content:
             service.createAttachment(self.uri, file_name, title, file_content.read())
         self._reloadFromPolarion()
@@ -572,7 +569,7 @@ class Workitem(CustomFields, Comments):
         :param title: The title of the attachment
         """
         service = self._polarion.getService('Tracker')
-        file_name = os.path.split(file_path)[1]
+        file_name = os.path.basename(file_path)
         with open(file_path, "rb") as file_content:
             service.updateAttachment(self.uri, id, file_name, title, file_content.read())
         self._reloadFromPolarion()
@@ -677,7 +674,7 @@ class Workitem(CustomFields, Comments):
             raise PolarionFieldError('Cannot update test steps on work item that does not have the custom field')
 
         # Verify validity of index
-        if type(index) != int:
+        if not isinstance(index, int):
             raise PolarionFieldError('First argument of updateTestStep must be an integer.')
         if index >= len(self._polarion_test_steps.steps.TestStep):
             raise ValueError(f'Index should be in range of test step length of {len(self._polarion_test_steps.steps.TestStep)}')
@@ -791,10 +788,7 @@ class Workitem(CustomFields, Comments):
         @return: True when test steps are available
         """
         service = self._polarion.getService('Tracker')
-        custom_fields = service.getCustomFieldKeys(self.uri)
-        if 'testSteps' in custom_fields:
-            return True
-        return False
+        return 'testSteps' in service.getCustomFieldKeys(self.uri)
 
 
     def save(self) -> None:
@@ -821,7 +815,6 @@ class Workitem(CustomFields, Comments):
         service = self._polarion.getService('Tracker')
         self._polarion_item = service.getWorkItemByUri(self._polarion_item.uri)
         self._buildWorkitemFromPolarion()
-        self._original_polarion = copy.deepcopy(self._polarion_item)
 
     def __eq__(self, other: object) -> bool:
         try:
@@ -863,8 +856,7 @@ class Workitem(CustomFields, Comments):
     def __repr__(self) -> str:
         return f'{self._id}: {self.title}'
 
-    def __str__(self) -> str:
-        return f'{self._id}: {self.title}'
+    __str__ = __repr__
 
 
 class WorkitemCreator(Creator):

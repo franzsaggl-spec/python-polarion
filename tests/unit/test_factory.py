@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 from polarion.factory import _subterraUrl, createFromUri, addCreator, creator_list, Creator
-from polarion.exceptions import PolarionFieldError, PolarionNotFoundError
+from polarion.exceptions import PolarionFieldError
 
 
 # ------------------------------------------------------------------
@@ -72,7 +72,7 @@ class TestCreateFromUri:
         mock_project = MagicMock()
         uri = 'subterra:data-service:objects:/default/project${UnknownWidget}456'
 
-        with pytest.raises(PolarionNotFoundError, match='not supported'):
+        with pytest.raises(PolarionFieldError, match='not supported'):
             createFromUri(mock_polarion, mock_project, uri)
 
 

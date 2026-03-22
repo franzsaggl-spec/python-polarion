@@ -336,5 +336,4 @@ class Project(object):
     def __repr__(self) -> str:
         return f'Polarion project {self.name} prefix {self.tracker_prefix}'
 
-    def __str__(self) -> str:
-        return f'Polarion project {self.name} prefix {self.tracker_prefix}'
+    __str__ = __repr__

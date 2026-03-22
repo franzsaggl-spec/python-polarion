@@ -25,6 +25,9 @@ logger = logging.getLogger(__name__)
 _baseServiceUrl = 'ws/services'
 
 
+_SESSION_CHECK_INTERVAL = 300  # seconds
+
+
 class Polarion(object):
     """
     Create a Polarion client which communicates to the Polarion server.
@@ -71,7 +74,6 @@ class Polarion(object):
         self._createSession()
         self._getTypes()
         self._last_session_check = time.time()
-        self._session_check_interval = 300  # seconds
 
         atexit.register(self._atexit_cleanup)
 
@@ -224,16 +226,14 @@ class Polarion(object):
         """
         Checks if a WSDL service is available
         """
-        if name in self.services:
-            return True
-        return False
+        return name in self.services
 
     def getService(self, name: str) -> Any:
         """
         Get a WSDL service client. The name can be 'Tracker' or 'Session'
         """
         # periodically check if the session is still valid
-        if time.time() - self._last_session_check > self._session_check_interval:
+        if time.time() - self._last_session_check > _SESSION_CHECK_INTERVAL:
             try:
                 self.services['Project']['client'].service.getUser(self.user)
                 self._last_session_check = time.time()
@@ -306,5 +306,4 @@ class Polarion(object):
     def __repr__(self) -> str:
         return f'Polarion client for {self.url} with user {self.user}'
 
-    def __str__(self) -> str:
-        return f'Polarion client for {self.url} with user {self.user}'
+    __str__ = __repr__

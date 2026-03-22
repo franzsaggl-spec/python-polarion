@@ -44,7 +44,6 @@ def test_get_service_returns_client_service(mock_polarion):
 def test_get_service_does_not_recheck_session_within_interval(mock_polarion):
     """getService should not re-check the session if called within the interval."""
     mock_polarion._last_session_check = time.time()
-    mock_polarion._session_check_interval = 300
 
     # Reset call count on the Project service mock
     project_client = mock_polarion.services['Project']['client']
@@ -60,7 +59,6 @@ def test_get_service_does_not_recheck_session_within_interval(mock_polarion):
 def test_get_service_rechecks_session_after_interval(mock_polarion):
     """getService should re-check session validity when the interval has elapsed."""
     mock_polarion._last_session_check = time.time() - 600  # well past 300s
-    mock_polarion._session_check_interval = 300
 
     project_client = mock_polarion.services['Project']['client']
     project_client.service.getUser.reset_mock()

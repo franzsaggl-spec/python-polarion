@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import logging
 from typing import Any, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from polarion.polarion import Polarion
     from polarion.project import Project
-
-logger = logging.getLogger(__name__)
 
 
 class PolarionObject(object):
