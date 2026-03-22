@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class Project(object):
+class Project:
     """
     A Polarion project instance usable to access workitem, testruns and more. usually create by using the Polarion client.
 
@@ -122,11 +122,7 @@ class Project(object):
         :return: The search results
         :rtype: Plan[]
         """
-        return_list = []
-        plans = self.searchPlan(query, order, limit)
-        for plan in plans:
-            return_list.append(Plan(self.polarion, self, polarion_record=plan))
-        return return_list
+        return [Plan(self.polarion, self, polarion_record=p) for p in self.searchPlan(query, order, limit)]
 
 
     def createWorkitem(self, workitem_type: str, new_workitem_fields: Optional[dict[str, Any]] = None) -> Workitem:
@@ -192,12 +188,7 @@ class Project(object):
         :return: The search results
         :rtype: Workitem[]
         """
-        return_list = []
-        workitems = self.searchWorkitem(query, order, ['id'], limit)
-        for workitem in workitems:
-            return_list.append(
-                Workitem(self.polarion, self, workitem.id))
-        return return_list
+        return [Workitem(self.polarion, self, w.id) for w in self.searchWorkitem(query, order, ['id'], limit)]
     
     def searchWorkitemFullItemInBaseline(self, baselineRevision: str, query: str = '', sort: str = 'uri', limit: int = -1) -> list[Workitem]:
         """Query for available workitems in baseline. This will query for the items and then fetch all result. May take a while for a big search with many results.
@@ -209,12 +200,7 @@ class Project(object):
         :return: The search results
         :rtype: Workitem[]
         """
-        return_list = []
-        workitems = self.searchWorkitemInBaseline(baselineRevision, query, sort, ['id'], limit)
-        for workitem in workitems:
-            return_list.append(
-                Workitem(self.polarion, self, uri=workitem.uri))
-        return return_list
+        return [Workitem(self.polarion, self, uri=w.uri) for w in self.searchWorkitemInBaseline(baselineRevision, query, sort, ['id'], limit)]
 
     def getTestRun(self, id: str) -> Testrun:
         """Get a testrun by string
@@ -234,16 +220,11 @@ class Project(object):
         :return: The request testrun
         :rtype: Testrun[]
         """
-        if len(query) > 0:
+        if query:
             query += ' AND '
         query += f'project.id:{self.id}'
-        return_list = []
         service = self.polarion.getService('TestManagement')
-        test_runs = service.searchTestRunsLimited(query, order, limit)
-        for test_run in test_runs:
-            return_list.append(
-                Testrun(self.polarion, polarion_test_run=test_run))
-        return return_list
+        return [Testrun(self.polarion, polarion_test_run=tr) for tr in service.searchTestRunsLimited(query, order, limit)]
 
     def createTestRun(self, id: str, title: str, template_id: str) -> Testrun:
         """
@@ -263,13 +244,8 @@ class Project(object):
         :return: A list of options for the enum
         :rtype: string[]
         """
-        available = []
         service = self.polarion.getService('Tracker')
-        av = service.getAllEnumOptionsForId(self.id, enum_name)
-        for a in av:
-            if a.id not in available:
-                available.append(a.id)
-        return available
+        return list(dict.fromkeys(a.id for a in service.getAllEnumOptionsForId(self.id, enum_name)))
 
     def createDocument(self, location: str, name: str, title: str, allowed_workitem_types: list[str], structure_link_role: str, home_page_content: str = '') -> Document:
         """
@@ -283,10 +259,7 @@ class Project(object):
         :param home_page_content: Initial content of the document as HTML
         :return: New document
         """
-        allowed_workitem_ids = []
-        for allowed_workitem_type in allowed_workitem_types:
-            allowed_workitem_ids.append(self.polarion.EnumOptionIdType(id=allowed_workitem_type))
-
+        allowed_workitem_ids = [self.polarion.EnumOptionIdType(id=t) for t in allowed_workitem_types]
         structure_link_role_id = self.polarion.EnumOptionIdType(id=structure_link_role)
 
         service = self.polarion.getService('Tracker')
@@ -317,12 +290,8 @@ class Project(object):
         :param space: Name of the space.
         :return: Document[]
         """
-        documents = []
         service = self.polarion.getService('Tracker')
-        uris = service.getModuleUris(self.id, space)
-        for uri in uris:
-            documents.append(Document(self.polarion, self, uri=uri))
-        return documents
+        return [Document(self.polarion, self, uri=u) for u in service.getModuleUris(self.id, space)]
 
     def getDocument(self, location: str) -> Document:
         """

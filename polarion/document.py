@@ -51,11 +51,9 @@ class Document(CustomFields):
         self._buildFromPolarion()
 
     def _buildFromPolarion(self) -> None:
-        if self._polarion_document is not None and self._polarion_document.unresolvable is False:
+        if self._polarion_document is not None and not self._polarion_document.unresolvable:
             self._original_polarion = copy.deepcopy(self._polarion_document)
-            for attr, value in self._polarion_document.__dict__.items():
-                for key in value:
-                    setattr(self, key, value[key])
+            self._populate_attrs(self, self._polarion_document)
 
     def _reloadFromPolarion(self) -> None:
         service = self._polarion.getService('Tracker')
@@ -195,15 +193,8 @@ class Document(CustomFields):
         """
         Update the document in polarion
         """
-        updated_item = {}
-
-        for attr, value in self._polarion_document.__dict__.items():
-            for key in value:
-                current_value = getattr(self, key)
-                prev_value = getattr(self._original_polarion, key)
-                if current_value != prev_value:
-                    updated_item[key] = current_value
-        if len(updated_item) > 0:
+        updated_item = self._build_update_dict(self, self._polarion_document, self._original_polarion)
+        if updated_item:
             updated_item['uri'] = self._uri
             service = self._polarion.getService('Tracker')
             service.updateModule(updated_item)

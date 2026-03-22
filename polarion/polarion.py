@@ -28,7 +28,7 @@ _baseServiceUrl = 'ws/services'
 _SESSION_CHECK_INTERVAL = 300  # seconds
 
 
-class Polarion(object):
+class Polarion:
     """
     Create a Polarion client which communicates to the Polarion server.
 
@@ -284,24 +284,17 @@ class Polarion(object):
 
 
     def downloadFromSvn(self, url: str) -> bytes:
-
+        download_url = url
         if self.svn_repo_url is not None:
-            # user specified new url to try, use that instead of the default value
             orig_url = urlparse(url)
             orig_url_path_without_repo = '/'.join(orig_url.path.split('/')[2:])
             new_root_url = urlparse(self.svn_repo_url)
-            new_repo_url = f'{new_root_url.scheme}://{new_root_url.netloc}/{new_root_url.path.strip("/")}/{orig_url_path_without_repo}'
-            resp = requests.get(new_repo_url, auth=(self.user, self.password))
-            if resp.ok:
-                return resp.content
-            raise PolarionApiError(f'Could not download attachment from {url}. Got error {resp.status_code}: {resp.reason}')
-        else:
-            # try the url that was given
-            resp = requests.get(url, auth=(self.user, self.password))
-            if resp.ok:
-                return resp.content
+            download_url = f'{new_root_url.scheme}://{new_root_url.netloc}/{new_root_url.path.strip("/")}/{orig_url_path_without_repo}'
 
-            raise PolarionApiError(f'Could not download attachment from {url}. Got error {resp.status_code}: {resp.reason}')
+        resp = requests.get(download_url, auth=(self.user, self.password))
+        if resp.ok:
+            return resp.content
+        raise PolarionApiError(f'Could not download attachment from {url}. Got error {resp.status_code}: {resp.reason}')
 
     def __repr__(self) -> str:
         return f'Polarion client for {self.url} with user {self.user}'

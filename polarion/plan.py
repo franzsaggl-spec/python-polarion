@@ -4,6 +4,7 @@ import copy
 from datetime import date, datetime
 from typing import Any, Optional, TYPE_CHECKING
 
+from .base.polarion_object import PolarionObject
 from .exceptions import PolarionNotFoundError, PolarionFieldError
 from .factory import Creator
 from .workitem import Workitem
@@ -13,7 +14,7 @@ if TYPE_CHECKING:
     from .project import Project
 
 
-class Plan(object):
+class Plan:
     """
     A polarion Plan
     """
@@ -57,9 +58,7 @@ class Plan(object):
 
     def _buildPlanFromPolarion(self) -> None:
         if self._polarion_record is not None and not self._polarion_record.unresolvable:
-            for attr, value in self._polarion_record.__dict__.items():
-                for key in value:
-                    setattr(self, key, value[key])
+            PolarionObject._populate_attrs(self, self._polarion_record)
             self._original_polarion = copy.deepcopy(self._polarion_record)
         else:
             raise PolarionNotFoundError('Plan not retrieved from Polarion')
@@ -131,7 +130,7 @@ class Plan(object):
         :param type: a string with the type name
         :return: None
         """
-        if any(x.id == type for x in self.allowedTypes.EnumOptionId) is False:
+        if not any(x.id == type for x in self.allowedTypes.EnumOptionId):
             service = self._polarion.getService('Planning')
             service.addPlanAllowedType(self.uri, self._polarion.EnumOptionIdType(id=type))
             self._reloadFromPolarion()
@@ -142,7 +141,7 @@ class Plan(object):
         :param type: a string with the type name
         :return: None
         """
-        if any(x.id == type for x in self.allowedTypes.EnumOptionId) is True:
+        if any(x.id == type for x in self.allowedTypes.EnumOptionId):
             service = self._polarion.getService('Planning')
             service.removePlanAllowedType(self.uri, self._polarion.EnumOptionIdType(id=type))
             self._reloadFromPolarion()
@@ -152,26 +151,17 @@ class Plan(object):
         Get all workitems from this plan
         :return: Array of workitems
         """
-        workitems = []
-        if self.records is not None:
-            for workitem in self.records.PlanRecord:
-                if workitem.item.id is not None:
-                    workitems.append(Workitem(self._polarion, self._project, polarion_workitem=workitem.item))
-        return workitems
+        if self.records is None:
+            return []
+        return [Workitem(self._polarion, self._project, polarion_workitem=r.item)
+                for r in self.records.PlanRecord if r.item.id is not None]
 
     def save(self) -> None:
         """
         Update the plan in polarion
         """
-        updated_plan = {}
-
-        for attr, value in self._polarion_record.__dict__.items():
-            for key in value:
-                current_value = getattr(self, key)
-                prev_value = getattr(self._original_polarion, key)
-                if current_value != prev_value:
-                    updated_plan[key] = current_value
-        if len(updated_plan) > 0:
+        updated_plan = PolarionObject._build_update_dict(self, self._polarion_record, self._original_polarion)
+        if updated_plan:
             updated_plan['uri'] = self.uri
             service = self._polarion.getService('Planning')
             service.updatePlan(updated_plan)
@@ -189,12 +179,7 @@ class Plan(object):
         Get the child plans
         :return: List of Plans, or empty list if there are no children.
         """
-        search_results = self._project.searchPlanFullItem(f'parent.id:{self.id}')
-        children = []
-        for plan in search_results:
-            if plan.id != self.id:
-                children.append(plan)
-        return children
+        return [p for p in self._project.searchPlanFullItem(f'parent.id:{self.id}') if p.id != self.id]
 
 
     def _reloadFromPolarion(self) -> None:

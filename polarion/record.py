@@ -4,6 +4,7 @@ import os
 from enum import Enum
 from typing import Any, Optional, TYPE_CHECKING
 
+from .base.polarion_object import PolarionObject, PostponeSaveMixin
 from .exceptions import PolarionNotFoundError
 from .factory import createFromUri
 
@@ -13,7 +14,7 @@ if TYPE_CHECKING:
     from .user import User
 
 
-class Record(object):
+class Record(PostponeSaveMixin):
     """
     Create a Polarion test record,
 
@@ -39,23 +40,10 @@ class Record(object):
         self._polarion_record = polarion_record
         self._index = index
 
-        self._postpone_save = False
-
         self._buildWorkitemFromPolarion()
 
-    def __enter__(self) -> Record:
-        self._postpone_save = True
-        return self
-
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        self._postpone_save = False
-        self.save()
-
     def _buildWorkitemFromPolarion(self) -> None:
-        # parse all polarion attributes to this class
-        for attr, value in self._polarion_record.__dict__.items():
-            for key in value:
-                setattr(self, key, value[key])
+        PolarionObject._populate_attrs(self, self._polarion_record)
 
         self._testcase = self._polarion_record.testCaseURI
         self._testcase_name = self._testcase.split('}')[1]

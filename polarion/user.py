@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, TYPE_CHECKING
 
+from .base.polarion_object import PolarionObject
 from .exceptions import PolarionNotFoundError
 from .factory import Creator
 
@@ -9,7 +10,7 @@ if TYPE_CHECKING:
     from .polarion import Polarion
 
 
-class User(object):
+class User:
     """
     A polarion user
 
@@ -28,10 +29,7 @@ class User(object):
             self._polarion_record = service.getUserByUri(self._uri)
 
         if self._polarion_record is not None and not self._polarion_record.unresolvable:
-            # parse all polarion attributes to this class
-            for attr, value in self._polarion_record.__dict__.items():
-                for key in value:
-                    setattr(self, key, value[key])
+            PolarionObject._populate_attrs(self, self._polarion_record)
         else:
             raise PolarionNotFoundError('User not retrieved from Polarion')
 

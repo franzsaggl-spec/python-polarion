@@ -51,17 +51,11 @@ class Testrun(CustomFields, Comments):
         
     def _buildWorkitemFromPolarion(self) -> None:
         if self._polarion_test_run is not None and not self._polarion_test_run.unresolvable:
-            for attr, value in self._polarion_test_run.__dict__.items():
-                for key in value:
-                    if key == 'records':
-                        setattr(self, '_' + key, value[key])
-                    else:
-                        setattr(self, key, value[key])
+            self._populate_attrs(self, self._polarion_test_run, remap={'records': '_records'})
 
             self.records = []
             self._record_dict = {}
             if self._records is not None:
-                # for r in self._records.TestRecord:
                 for index, r in enumerate(self._records.TestRecord):
                     new_record = Record(self._polarion, self, r, index)
                     self.records.append(new_record)
@@ -182,18 +176,8 @@ class Testrun(CustomFields, Comments):
         """
         Update the testrun in polarion
         """
-        updated_item = {}
-        skip = ['records']
-
-        for attr, value in self._polarion_test_run.__dict__.items():
-            for key in value:
-                if key in skip:
-                    continue
-                current_value = getattr(self, key)
-                prev_value = getattr(self._original_polarion_test_run, key)
-                if current_value != prev_value:
-                    updated_item[key] = current_value
-        if len(updated_item) > 0:
+        updated_item = self._build_update_dict(self, self._polarion_test_run, self._original_polarion_test_run, skip={'records'})
+        if updated_item:
             updated_item['uri'] = self.uri
             service = self._polarion.getService('TestManagement')
             service.updateTestRun(updated_item)

@@ -333,45 +333,36 @@ class ResultExporter:
     """
     Export an object as a json (tested with a testrun)
     """
+    _ZEEP_HANDLERS = {
+        'ArrayOfTestRecord': lambda cls, obj: cls._make_serialisable(obj.TestRecord),
+        'ArrayOfCustom': lambda cls, obj: cls._make_serialisable(obj.Custom),
+        'ArrayOfEnumOptionId': lambda cls, obj: cls._make_serialisable(obj.EnumOptionId),
+        'EnumOptionId': lambda cls, obj: obj.id,
+        'Custom': lambda cls, obj: {'key': obj.key, 'value': cls._make_serialisable(obj.value)},
+        'Text': lambda cls, obj: obj.content,
+        'Testrun': lambda cls, obj: cls._make_serialisable(dict(obj._polarion_test_run.__dict__['__values__']).copy()),
+        'TestRecord': lambda cls, obj: cls._make_serialisable(dict(obj.__dict__['__values__']).copy()),
+    }
+
     @classmethod
     def _make_serialisable(cls, obj):
-        if isinstance(obj, str):
+        if isinstance(obj, (str, bool)):
             return obj
-        elif isinstance(obj, int):
+        if isinstance(obj, (int, float)):
             return str(obj)
-        elif isinstance(obj, float):
-            return str(obj)
-        elif isinstance(obj, bool):
-            return obj
-        elif isinstance(obj, list):
-            return [ResultExporter._make_serialisable(item) for item in obj]
-        elif isinstance(obj, dict):
-            for key,val in obj.items():
-                obj[key]=ResultExporter._make_serialisable(val)
-            return obj
-        elif isinstance(obj, datetime):
+        if isinstance(obj, list):
+            return [cls._make_serialisable(item) for item in obj]
+        if isinstance(obj, dict):
+            return {k: cls._make_serialisable(v) for k, v in obj.items()}
+        if isinstance(obj, datetime):
             return obj.strftime('%d-%m-%Y-%H-%M-%S-%f')
-        elif str(type(obj))=="<class 'zeep.objects.ArrayOfTestRecord'>":
-            return ResultExporter._make_serialisable(obj.TestRecord)
-        elif str(type(obj))=="<class 'zeep.objects.ArrayOfCustom'>":
-            return ResultExporter._make_serialisable(obj.Custom)
-        elif str(type(obj))=="<class 'zeep.objects.ArrayOfEnumOptionId'>":
-            return ResultExporter._make_serialisable(obj.EnumOptionId)
-        elif str(type(obj))=="<class 'zeep.objects.EnumOptionId'>":
-            return obj.id
-        elif str(type(obj))=="<class 'zeep.objects.Custom'>":
-            return { 'key': obj.key, 'value': ResultExporter._make_serialisable(obj.value) }
-        elif str(type(obj))=="<class 'zeep.objects.Text'>":
-            return obj.content
-        elif str(type(obj))=="<class 'polarion.testrun.Testrun'>":
-            return ResultExporter._make_serialisable(dict(obj._polarion_test_run.__dict__['__values__']).copy())
-        elif str(type(obj))=="<class 'zeep.objects.TestRecord'>":
-            return ResultExporter._make_serialisable(dict(obj.__dict__['__values__']).copy())
-        elif type(obj)==type(None):
+        if obj is None:
             return None
-        else:
-            print('[WARN] Not processed type: '+str(type(obj))+' having value: '+str(obj))
-            return str(obj)
+        handler = cls._ZEEP_HANDLERS.get(type(obj).__name__)
+        if handler:
+            return handler(cls, obj)
+        logger.warning('Not processed type: %s having value: %s', type(obj), obj)
+        return str(obj)
 
     @classmethod
     def save_json(cls, results_file, test_run):

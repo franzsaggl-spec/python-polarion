@@ -57,10 +57,7 @@ class DescriptionParser(HTMLParser, ABC):
         @param attrs: A tuple of attributes
         @return: None
         """
-        # parse attributes to dict
-        attributes = {}
-        for attribute, value in attrs:
-            attributes[attribute] = value
+        attributes = dict(attrs)
 
         if tag == 'span' and 'class' in attributes:
             if attributes['class'] == 'polarion-rte-link':
