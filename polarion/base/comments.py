@@ -1,11 +1,18 @@
+from __future__ import annotations
+
+import logging
 from abc import ABC
+from typing import Optional
 
 from polarion.base.polarion_object import PolarionObject
+from polarion.exceptions import PolarionFieldError, PolarionApiError
+
+logger = logging.getLogger(__name__)
 
 
 class Comments(PolarionObject, ABC):
 
-    def addComment(self, title, comment, parent=None, type='html'):
+    def addComment(self, title: Optional[str], comment: str, parent: Optional[str] = None, type: str = 'html') -> None:
         """
         Adds a comment to the workitem.
 
@@ -17,7 +24,7 @@ class Comments(PolarionObject, ABC):
         """
         service = self._polarion.getService('Tracker')
         if type not in ['html', 'plain']:
-            raise Exception('Type must be either html or plain.')
+            raise PolarionFieldError('Type must be either html or plain.')
         if hasattr(service, 'addComment'):
             if parent is None:
                 parent = self.uri
@@ -32,4 +39,4 @@ class Comments(PolarionObject, ABC):
             service.addComment(parent, title, content)
             self._reloadFromPolarion()
         else:
-            raise Exception("addComment binding not found in Tracker Service. Adding comments might be disabled.")
+            raise PolarionApiError("addComment binding not found in Tracker Service. Adding comments might be disabled.")

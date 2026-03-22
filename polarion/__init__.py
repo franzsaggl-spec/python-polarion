@@ -3,8 +3,10 @@ from .testrun import TestrunCreator
 from .workitem import WorkitemCreator
 from .factory import addCreator
 from .document import DocumentCreator
+from .plan import PlanCreator
 
 addCreator('workitem', WorkitemCreator)
 addCreator('testrun', TestrunCreator)
 addCreator('user', UserCreator)
 addCreator('module', DocumentCreator)
+addCreator('plan', PlanCreator)

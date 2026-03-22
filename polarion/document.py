@@ -1,14 +1,26 @@
+from __future__ import annotations
+
 import copy
+import logging
+from typing import Any, Optional, TYPE_CHECKING
 
 from zeep import xsd
 from zeep.helpers import serialize_object
 
 from .base.custom_fields import CustomFields
+from .exceptions import PolarionNotFoundError
 from .factory import createFromUri, Creator
+
+if TYPE_CHECKING:
+    from .polarion import Polarion
+    from .project import Project
+    from .workitem import Workitem
+
+logger = logging.getLogger(__name__)
 
 
 class Document(CustomFields):
-    def __init__(self, polarion, project, uri=None, location=None):
+    def __init__(self, polarion: Polarion, project: Project, uri: Optional[str] = None, location: Optional[str] = None) -> None:
         """
         Create a Document.
         :param polarion: Polarion client object
@@ -25,32 +37,32 @@ class Document(CustomFields):
             service = self._polarion.getService('Tracker')
             self._polarion_document = service.getModuleByUri(self._uri)
             if self._polarion_document is not None and self._polarion_document.unresolvable:
-                raise Exception(
+                raise PolarionNotFoundError(
                     f'Cannot find document at URI {self._uri} in project {self._project.id}')
 
         elif location is not None:
             service = self._polarion.getService('Tracker')
             self._polarion_document = service.getModuleByLocation(self._project.id, location)
             if self._polarion_document is not None and self._polarion_document.unresolvable:
-                raise Exception(
+                raise PolarionNotFoundError(
                     f'Cannot find document at location {location} in project {self._project.id}')
             self._uri = self._polarion_document.uri
 
         self._buildFromPolarion()
 
-    def _buildFromPolarion(self):
+    def _buildFromPolarion(self) -> None:
         if self._polarion_document is not None and self._polarion_document.unresolvable is False:
             self._original_polarion = copy.deepcopy(self._polarion_document)
             for attr, value in self._polarion_document.__dict__.items():
                 for key in value:
                     setattr(self, key, value[key])
 
-    def _reloadFromPolarion(self):
+    def _reloadFromPolarion(self) -> None:
         service = self._polarion.getService('Tracker')
         self._polarion_document = service.getModuleByUri(self._uri)
         self._buildFromPolarion()
 
-    def exportDocumentToPDF(self):
+    def exportDocumentToPDF(self) -> bytes:
         """
         Download a PDF export of the document.
         :return: bytes
@@ -61,7 +73,7 @@ class Document(CustomFields):
         pdf = service.exportDocumentToPDF(self._uri, serialized_pdf_props)
         return pdf
 
-    def getWorkitemUris(self):
+    def getWorkitemUris(self) -> list[str]:
         """
         Get the uris of all workitems in the document.
         :return: string[]
@@ -70,7 +82,7 @@ class Document(CustomFields):
         workitems = service.getModuleWorkItemUris(self._uri, None, True)
         return workitems
 
-    def getWorkitems(self):
+    def getWorkitems(self) -> list[Workitem]:
         """
         Get all complete workitems.
         That may take some time on a large document.
@@ -82,18 +94,17 @@ class Document(CustomFields):
             try:
                 workitems.append(createFromUri(self._polarion, self._project, workitem_uri))
             except Exception as e:
-                # This happens when a reference to a deleted workitem is not removed from a document.
-                pass
+                logger.warning('Skipping unresolvable workitem URI %s: %s', workitem_uri, e)
         return workitems
 
-    def getTopLevelWorkitem(self):
+    def getTopLevelWorkitem(self) -> Workitem:
         """
         Get the top level workitem, which is usually the title.
         :return: Workitem
         """
         return createFromUri(self._polarion, self._project, self.getWorkitemUris()[0])
 
-    def getChildren(self, workitem):
+    def getChildren(self, workitem: Workitem) -> list[Workitem]:
         """
         Gets the children of a workitem in the document.
 
@@ -109,7 +120,7 @@ class Document(CustomFields):
                 workitem_children.append(createFromUri(self._polarion, self._project, child.workItemURI))
         return workitem_children
 
-    def getParent(self, workitem):
+    def getParent(self, workitem: Workitem) -> Optional[Workitem]:
         """
         Gets the parent of a workitem in the document.
 
@@ -124,7 +135,7 @@ class Document(CustomFields):
             parent = createFromUri(self._polarion, self._project, parent_uri.workItemURI)
         return parent
 
-    def addHeading(self, title, parent_workitem=None):
+    def addHeading(self, title: str, parent_workitem: Optional[Workitem] = None) -> Workitem:
         """
         Adds a heading to a document
 
@@ -138,7 +149,7 @@ class Document(CustomFields):
         heading.moveToDocument(self, parent_workitem)
         return heading
 
-    def isCustomFieldAllowed(self, _):
+    def isCustomFieldAllowed(self, _: str) -> bool:
         """
         Checks if the custom field of a given key is allowed.
 
@@ -149,8 +160,8 @@ class Document(CustomFields):
         """
         return True
 
-    def reuse(self, target_project_id, target_location, target_name, target_title, link_role='derived_from',
-              derived_fields=None):
+    def reuse(self, target_project_id: str, target_location: str, target_name: str, target_title: str, link_role: Optional[str] = 'derived_from',
+              derived_fields: Optional[list[str]] = None) -> Document:
         """
         Reuse this document in a different project.
 
@@ -170,7 +181,7 @@ class Document(CustomFields):
                                         link_role, derived_fields)
         return createFromUri(self._polarion, self._project, new_uri)
 
-    def update(self, revision=None, auto_suspect=False):
+    def update(self, revision: Optional[str] = None, auto_suspect: bool = False) -> None:
         """
         Update a reused document to a revision of the source document.
 
@@ -180,7 +191,7 @@ class Document(CustomFields):
         service = self._polarion.getService('Tracker')
         service.updateDerivedDocument(self._uri, revision if revision is not None else xsd.const.Nil, auto_suspect)
 
-    def save(self):
+    def save(self) -> None:
         """
         Update the document in polarion
         """
@@ -198,20 +209,20 @@ class Document(CustomFields):
             service.updateModule(updated_item)
             self._reloadFromPolarion()
 
-    def delete(self):
+    def delete(self) -> None:
         """
         Deletes a document
         """
         service = self._polarion.getService('Tracker')
         service.deleteModule(self.uri)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'Polarion document {self.title} in {self.moduleFolder}'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'Polarion document {self.title} in {self.moduleFolder}'
 
 
 class DocumentCreator(Creator):
-    def createFromUri(self, polarion, project, uri):
+    def createFromUri(self, polarion: Polarion, project: Project, uri: str) -> Document:
         return Document(polarion, project, uri)

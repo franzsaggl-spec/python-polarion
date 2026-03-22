@@ -1,0 +1,200 @@
+"""Tests for key workitem functionality with mocked SOAP layer."""
+
+import copy
+import pytest
+from unittest.mock import MagicMock, patch, PropertyMock
+
+from polarion.workitem import Workitem
+from polarion.exceptions import PolarionNotFoundError
+
+
+def _make_workitem(mock_polarion, mock_project, mock_workitem_data):
+    """Build a Workitem from mocked data without hitting SOAP.
+
+    We mock getService so that:
+    - Tracker.getWorkItemById returns mock_workitem_data
+    - Tracker.getCustomFieldKeys returns [] (no test step field)
+    - TestManagement.getTestSteps returns a stub
+    """
+    tracker_service = MagicMock()
+    tracker_service.getWorkItemById.return_value = mock_workitem_data
+    tracker_service.getCustomFieldKeys.return_value = []
+
+    test_mgmt_service = MagicMock()
+    test_mgmt_service.getTestSteps.return_value = MagicMock(keys=None, steps=None)
+
+    def _get_service(name):
+        if name == 'Tracker':
+            return tracker_service
+        if name == 'TestManagement':
+            return test_mgmt_service
+        return MagicMock()
+
+    with patch.object(mock_polarion, 'getService', side_effect=_get_service):
+        wi = Workitem(mock_polarion, mock_project, id='WI-001')
+
+    # Re-patch getService for any subsequent calls the test might trigger
+    mock_polarion.getService = MagicMock(side_effect=_get_service)
+    wi._tracker_service = tracker_service
+    return wi
+
+
+# ------------------------------------------------------------------
+# getDescription
+# ------------------------------------------------------------------
+
+def test_get_description_returns_content(mock_polarion, mock_project, mock_workitem_data):
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    assert wi.getDescription() == '<p>Test description</p>'
+
+
+def test_get_description_returns_none_when_empty(mock_polarion, mock_project, mock_workitem_data):
+    mock_workitem_data.description = None
+    mock_workitem_data.__dict__['__values__']['description'] = None
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    assert wi.getDescription() is None
+
+
+# ------------------------------------------------------------------
+# setDescription
+# ------------------------------------------------------------------
+
+def test_set_description_calls_save(mock_polarion, mock_project, mock_workitem_data):
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    with patch.object(wi, 'save') as mock_save:
+        wi.setDescription('new desc')
+        mock_save.assert_called_once()
+
+
+# ------------------------------------------------------------------
+# hasTestSteps
+# ------------------------------------------------------------------
+
+def test_has_test_steps_false_when_none(mock_polarion, mock_project, mock_workitem_data):
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    # _parsed_test_steps is None by default when no steps are configured
+    wi._parsed_test_steps = None
+    assert wi.hasTestSteps() is False
+
+
+def test_has_test_steps_false_when_empty(mock_polarion, mock_project, mock_workitem_data):
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    wi._parsed_test_steps = []
+    assert wi.hasTestSteps() is False
+
+
+def test_has_test_steps_true_when_present(mock_polarion, mock_project, mock_workitem_data):
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    wi._parsed_test_steps = [{'step': 'do something', 'expected': 'it works'}]
+    assert wi.hasTestSteps() is True
+
+
+# ------------------------------------------------------------------
+# getStatusEnum, getResolutionEnum, getSeverityEnum
+# ------------------------------------------------------------------
+
+def test_get_status_enum_returns_empty_on_error(mock_polarion, mock_project, mock_workitem_data):
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    wi._project = MagicMock()
+    wi._project.getEnum.side_effect = Exception('enum error')
+    assert wi.getStatusEnum() == []
+
+
+def test_get_resolution_enum_returns_empty_on_error(mock_polarion, mock_project, mock_workitem_data):
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    wi._project = MagicMock()
+    wi._project.getEnum.side_effect = Exception('enum error')
+    assert wi.getResolutionEnum() == []
+
+
+def test_get_severity_enum_returns_empty_on_error(mock_polarion, mock_project, mock_workitem_data):
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    wi._project = MagicMock()
+    wi._project.getEnum.side_effect = Exception('enum error')
+    assert wi.getSeverityEnum() == []
+
+
+def test_get_status_enum_returns_values(mock_polarion, mock_project, mock_workitem_data):
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    wi._project = MagicMock()
+    wi._project.getEnum.return_value = ['open', 'closed', 'in_progress']
+    assert wi.getStatusEnum() == ['open', 'closed', 'in_progress']
+
+
+# ------------------------------------------------------------------
+# hasAttachment
+# ------------------------------------------------------------------
+
+def test_has_attachment_false(mock_polarion, mock_project, mock_workitem_data):
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    wi.attachments = None
+    assert wi.hasAttachment() is False
+
+
+def test_has_attachment_true(mock_polarion, mock_project, mock_workitem_data):
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    wi.attachments = MagicMock()  # non-None
+    assert wi.hasAttachment() is True
+
+
+# ------------------------------------------------------------------
+# Context manager (__enter__ / __exit__)
+# ------------------------------------------------------------------
+
+def test_context_manager_postpones_save(mock_polarion, mock_project, mock_workitem_data):
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+
+    with patch.object(wi, 'save') as mock_save:
+        with wi:
+            assert wi._postpone_save is True
+            # Calling save inside the context should be a no-op because
+            # postpone is True and the real save checks for it
+            wi.save()
+        # __exit__ should set postpone to False and call save
+        assert wi._postpone_save is False
+    # save was called: once from our explicit call inside `with` (no-op due to postpone)
+    # and once from __exit__
+    assert mock_save.call_count == 2
+
+
+def test_context_manager_sets_postpone_false_on_exit(mock_polarion, mock_project, mock_workitem_data):
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    with patch.object(wi, 'save'):
+        with wi:
+            pass
+    assert wi._postpone_save is False
+
+
+# ------------------------------------------------------------------
+# __eq__
+# ------------------------------------------------------------------
+
+def test_eq_same_workitem(mock_polarion, mock_project, mock_workitem_data):
+    wi1 = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    wi2 = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    assert wi1 == wi2
+
+
+def test_eq_different_type(mock_polarion, mock_project, mock_workitem_data):
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    assert wi != "not a workitem"
+    assert wi != 42
+    assert wi != None  # noqa: E711 -- intentional None comparison
+
+
+# ------------------------------------------------------------------
+# __str__ and __repr__
+# ------------------------------------------------------------------
+
+def test_str_contains_id_and_title(mock_polarion, mock_project, mock_workitem_data):
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    s = str(wi)
+    assert 'WI-001' in s
+    assert 'Test workitem' in s
+
+
+def test_repr_contains_id_and_title(mock_polarion, mock_project, mock_workitem_data):
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    r = repr(wi)
+    assert 'WI-001' in r
+    assert 'Test workitem' in r

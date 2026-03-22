@@ -1,9 +1,13 @@
+import json
+import logging
+import re
 import xml.etree.ElementTree as ET
+from datetime import datetime
+
+from .exceptions import PolarionConfigError, PolarionApiError
 from .polarion import Polarion
 from .record import Record
-from datetime import datetime
-import logging, json
-import re
+
 logger = logging.getLogger(__name__)
 
 class Config:
@@ -36,7 +40,7 @@ class Config:
         if not Config._classinitialised:
             # Add properties dynamicaly
             for attr in Config.ATTRIBUTES:
-                eval(f'setattr(Config, "{attr}", property(lambda self: self._data["{attr}"] if "{attr}" in self._data.keys() else Config._default_value("{attr}")))')
+                setattr(Config, attr, property(lambda self, a=attr: self._data[a] if a in self._data else Config._default_value(a)))
             Config._classinitialised=True
         return super().__new__(cls)
         
@@ -82,9 +86,9 @@ class Config:
     def _check_mandatory(self):
         for attribute in Config.MANDATORY:
             if getattr(self, attribute) == None:
-                raise Exception(attribute + ' shall be set')
+                raise PolarionConfigError(attribute + ' shall be set')
         if getattr(self, Config.TOKEN)==None and (getattr(self, Config.USERNAME)==None or getattr(self, Config.PASSWORD)==None):
-            raise Exception(f'Shall set either {Config.USERNAME} / {Config.PASSWORD} or {Config.TOKEN}')
+            raise PolarionConfigError(f'Shall set either {Config.USERNAME} / {Config.PASSWORD} or {Config.TOKEN}')
 
     def generate_test_run_id(self):
         if getattr(self, Config.TESTRUN_ID) is None:
@@ -120,7 +124,7 @@ class XmlParser:
         elif root.tag == XmlParser.TEST_SUITE:
             XmlParser._parse_suite(root, { 'path': f'{xml_file}/{XmlParser.TEST_SUITE}' }, returned_cases)
         else:
-            raise Exception(f'Unmanaged root {root.tag} in {xml_file}')
+            raise PolarionConfigError(f'Unmanaged root {root.tag} in {xml_file}')
         return returned_cases
 
     @classmethod
@@ -142,7 +146,7 @@ class XmlParser:
                 if child.tag == XmlParser.TEST_CASE:
                     XmlParser._parse_case(child, suite, returned_cases)
         else:
-            raise Exception(f'Unmanaged {XmlParser.TEST_SUITE} {test_suite.tag} in {parent["path"]}')
+            raise PolarionConfigError(f'Unmanaged {XmlParser.TEST_SUITE} {test_suite.tag} in {parent["path"]}')
 
     # matches expressions like [[PROPERTY|verifies=REQ-001]]
     RE_PATTTERN = re.compile("\\[\\[PROPERTY\\|(.*)\\=(.*)\\]\\]")
@@ -196,7 +200,7 @@ class XmlParser:
                         case['properties'].append({property['name'] : property['value']})
             returned_cases.append(case)
         else:
-            raise Exception(f'Unmanaged {XmlParser.TEST_CASE} {test_case.tag} in {parent["path"]}')
+            raise PolarionConfigError(f'Unmanaged {XmlParser.TEST_CASE} {test_case.tag} in {parent["path"]}')
 
     @classmethod
     def _xmlnode_name(cls, node):

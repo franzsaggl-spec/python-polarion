@@ -1,6 +1,19 @@
+from __future__ import annotations
+
+import copy
+import logging
+from datetime import date, datetime
+from typing import Any, Optional, TYPE_CHECKING
+
+from .exceptions import PolarionNotFoundError, PolarionFieldError
 from .factory import Creator
 from .workitem import Workitem
-import copy
+
+if TYPE_CHECKING:
+    from .polarion import Polarion
+    from .project import Project
+
+logger = logging.getLogger(__name__)
 
 
 class Plan(object):
@@ -8,8 +21,8 @@ class Plan(object):
     A polarion Plan
     """
 
-    def __init__(self, polarion, project, polarion_record=None, uri=None, id=None, new_plan_name=None, new_plan_id=None, new_plan_parent=None,
-                 new_plan_template=None):
+    def __init__(self, polarion: Polarion, project: Optional[Project], polarion_record: Optional[Any] = None, uri: Optional[str] = None, id: Optional[str] = None, new_plan_name: Optional[str] = None, new_plan_id: Optional[str] = None, new_plan_parent: Optional[Plan] = None,
+                 new_plan_template: Optional[str] = None) -> None:
         """
 
         :param polarion: Polarion client
@@ -45,7 +58,7 @@ class Plan(object):
 
         self._buildPlanFromPolarion()
 
-    def _buildPlanFromPolarion(self):
+    def _buildPlanFromPolarion(self) -> None:
         if self._polarion_record is not None and not self._polarion_record.unresolvable:
             # parse all polarion attributes to this class
             self._original_polarion = copy.deepcopy(self._polarion_record)
@@ -53,10 +66,10 @@ class Plan(object):
                 for key in value:
                     setattr(self, key, value[key])
         else:
-            raise Exception(f'Plan not retrieved from Polarion')
+            raise PolarionNotFoundError('Plan not retrieved from Polarion')
         self._original_polarion = copy.deepcopy(self._polarion_record)
 
-    def setDueDate(self, date):
+    def setDueDate(self, date: date | datetime) -> None:
         """
         Set the due date for this plan
         :param date: date object
@@ -65,7 +78,7 @@ class Plan(object):
         self.dueDate = date
         self.save()
 
-    def setStartDate(self, date):
+    def setStartDate(self, date: date | datetime) -> None:
         """
         Set the start date for this plan
         :param date: date object
@@ -74,7 +87,7 @@ class Plan(object):
         self.startDate = date
         self.save()
 
-    def setFinishedOnDate(self, date):
+    def setFinishedOnDate(self, date: date | datetime) -> None:
         """
         Set the finished date for this plan
         :param date: date object
@@ -83,7 +96,7 @@ class Plan(object):
         self.finishedOn = date
         self.save()
 
-    def setStartedOnDate(self, date):
+    def setStartedOnDate(self, date: date | datetime) -> None:
         """
         Set the started on date for this plan
         :param date: date object
@@ -92,7 +105,7 @@ class Plan(object):
         self.startedOn = date
         self.save()
 
-    def addToPlan(self, workitem: Workitem):
+    def addToPlan(self, workitem: Workitem) -> None:
         """
         Add a workitem to the plan
         :param workitem: Workitem
@@ -104,9 +117,9 @@ class Plan(object):
             workitem._reloadFromPolarion()  # noqa: call private to reload from polarion so the plan status is updated
             self._reloadFromPolarion()
         else:
-            raise Exception(f'Workitem type {workitem.id} is not allowed in this plan')
+            raise PolarionFieldError(f'Workitem type {workitem.id} is not allowed in this plan')
 
-    def removeFromPlan(self, workitem: Workitem):
+    def removeFromPlan(self, workitem: Workitem) -> None:
         """
         Remove a workitem from the plan
         :param workitem: Workitem
@@ -117,7 +130,7 @@ class Plan(object):
         workitem._reloadFromPolarion()  # noqa: call private to reload from polarion so the plan status is updated
         self._reloadFromPolarion()
 
-    def addAllowedType(self, type):
+    def addAllowedType(self, type: str) -> None:
         """
         Add an allowed workitem type to this plan
         :param type: a string with the type name
@@ -128,7 +141,7 @@ class Plan(object):
             service.addPlanAllowedType(self.uri, self._polarion.EnumOptionIdType(id=type))
             self._reloadFromPolarion()
 
-    def removeAllowedType(self, type):
+    def removeAllowedType(self, type: str) -> None:
         """
         Remove an allowed workitem type to this plan
         :param type: a string with the type name
@@ -139,7 +152,7 @@ class Plan(object):
             service.removePlanAllowedType(self.uri, self._polarion.EnumOptionIdType(id=type))
             self._reloadFromPolarion()
 
-    def getWorkitemsInPlan(self):
+    def getWorkitemsInPlan(self) -> list[Workitem]:
         """
         Get all workitems from this plan
         :return: Array of workitems
@@ -151,7 +164,7 @@ class Plan(object):
                     workitems.append(Workitem(self._polarion, self._project, polarion_workitem=workitem.item))
         return workitems
 
-    def save(self):
+    def save(self) -> None:
         """
         Update the plan in polarion
         """
@@ -169,14 +182,14 @@ class Plan(object):
             service.updatePlan(updated_plan)
             self._reloadFromPolarion()
 
-    def getParent(self):
+    def getParent(self) -> Plan:
         """
         Get the parent plan
         :return: parent Plan
         """
         return Plan(self._polarion, self._project, self.parent)
 
-    def getChildren(self):
+    def getChildren(self) -> list[Plan]:
         """
         Get the child plans
         :return: List of Plans, or empty list if there are no children.
@@ -189,24 +202,24 @@ class Plan(object):
         return children
 
 
-    def _reloadFromPolarion(self):
+    def _reloadFromPolarion(self) -> None:
         service = self._polarion.getService('Planning')
         self._polarion_record = service.getPlanByUri(self._polarion_record.uri)
         self._buildPlanFromPolarion()
         self._original_polarion = copy.deepcopy(self._polarion_record)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if self.id == other.id:
             return True
         return False
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'{self.name} ({self.id})'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.name} ({self.id})'
 
 
 class PlanCreator(Creator):
-    def createFromUri(self, polarion, project, uri):
+    def createFromUri(self, polarion: Polarion, project: Optional[Project], uri: str) -> Plan:
         return Plan(polarion, None, uri)

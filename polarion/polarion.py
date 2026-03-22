@@ -1,16 +1,25 @@
+from __future__ import annotations
+
 import atexit
+import logging
 import re
+import time
+from typing import Any, Optional, Union
 from urllib.parse import urljoin, urlparse
+
 import requests
-import tempfile
-import os
 from zeep import Client, CachingClient
 from zeep.plugins import HistoryPlugin
 from zeep.transports import Transport
 
+from .exceptions import (
+    PolarionAuthError,
+    PolarionConnectionError,
+    PolarionApiError,
+)
 from .project import Project
 from .workitem import Workitem
-import logging
+
 logger = logging.getLogger(__name__)
 
 _baseServiceUrl = 'ws/services'
@@ -30,8 +39,10 @@ class Polarion(object):
     :param proxy: Set to a proxy address to use a proxy, use the format: proxy='ip:port'
     """
 
-    def __init__(self, polarion_url, user, password=None, token=None, static_service_list=False, verify_certificate=True,
-                 svn_repo_url=None, proxy=None, request_session=None, cache=False):
+    def __init__(self, polarion_url: str, user: str, password: Optional[str] = None, token: Optional[str] = None,
+                 static_service_list: bool = False, verify_certificate: Union[bool, str] = True,
+                 svn_repo_url: Optional[str] = None, proxy: Optional[str] = None,
+                 request_session: Optional[requests.Session] = None, cache: bool = False) -> None:
         self.user = user
         self.password = password
         self.token = token
@@ -59,17 +70,19 @@ class Polarion(object):
             self._getServices()
         self._createSession()
         self._getTypes()
+        self._last_session_check = time.time()
+        self._session_check_interval = 300  # seconds
 
         atexit.register(self._atexit_cleanup)
 
-    def _atexit_cleanup(self):
+    def _atexit_cleanup(self) -> None:
         """
         Cleanup function to logout when Python is shutting down.
         :return: None
         """
         self.services['Session']['client'].service.endSession()
 
-    def _getStaticServices(self):
+    def _getStaticServices(self) -> None:
         default_services = ['Session', 'Project', 'Tracker',
                             'Builder', 'Planning', 'TestManagement', 'Security']
         service_base_url = self.url + '/'
@@ -77,7 +90,7 @@ class Polarion(object):
             self.services[service] = {'url': urljoin(
                 service_base_url, service + 'WebService')}
 
-    def _getServices(self):
+    def _getServices(self) -> None:
         """
         Parse the list of services available in the overview
         """
@@ -90,7 +103,7 @@ class Polarion(object):
                     self.services[service] = {'url': urljoin(
                         service_base_url, service + 'WebService')}
 
-    def _createSession(self):
+    def _createSession(self) -> None:
         """
         Starts a session with the specified user/password
         """
@@ -114,15 +127,17 @@ class Polarion(object):
                 self.sessionCookieJar = self.services['Session']['client'].transport.session.cookies
             except Exception as err:
                 logger.error(err)
-                raise Exception(
-                    f'Could not log in to Polarion for user {self.user}')
+                raise PolarionAuthError(
+                    f'Could not log in to Polarion for user {self.user}') from err
             if self.sessionHeaderElement is not None:
                 self._updateServices()
         else:
-            raise Exception(
+            raise PolarionConnectionError(
                 'Cannot login because WSDL has no SessionWebService')
 
-    def get_client(self,service,plugins=[]):
+    def get_client(self, service: str, plugins: Optional[list] = None) -> Union[Client, CachingClient]:
+        if plugins is None:
+            plugins = []
         client = None
 
         session = requests.Session()
@@ -135,12 +150,12 @@ class Polarion(object):
             client = Client(self.services[service]['url'] + '?wsdl', plugins=plugins, transport=transport)
         return client
 
-    def _updateServices(self):
+    def _updateServices(self) -> None:
         """
         Updates all services with the correct session ID
         """
         if self.sessionHeaderElement is None:
-            raise Exception('Cannot update services when not logged in')
+            raise PolarionAuthError('Cannot update services when not logged in')
         for service in self.services:
             if service != 'Session':
                 if 'client' not in service:
@@ -171,7 +186,7 @@ class Polarion(object):
                 self.services[service]['client'].service.setTestSteps._proxy._binding.get(
                     'setTestSteps').input.body.type._element[1].min_occurs = 0
 
-    def _getTypes(self):
+    def _getTypes(self) -> None:
         # TODO: check if the namespace is always the same
         self.EnumOptionIdType = self.getTypeFromService('TestManagement', 'ns3:EnumOptionId')
         self.TextType = self.getTypeFromService('TestManagement', 'ns1:Text')
@@ -191,9 +206,8 @@ class Polarion(object):
         self._PdfProperties = None
         try:
             self._PdfProperties = self.getTypeFromService('Tracker', 'ns2:PdfProperties')
-        except:
-            # fail silently if current polarion version does not have PDF properties
-            pass
+        except Exception:
+            logger.debug('PDF properties not available in this Polarion version')
 
     @property
     def PdfProperties(self):
@@ -203,10 +217,10 @@ class Polarion(object):
         @return: PdfProperties
         """
         if self._PdfProperties is None:
-            raise Exception(f'PDF not supported in this Polarion version')
+            raise PolarionApiError('PDF not supported in this Polarion version')
         return self._PdfProperties
 
-    def hasService(self, name: str):
+    def hasService(self, name: str) -> bool:
         """
         Checks if a WSDL service is available
         """
@@ -214,31 +228,34 @@ class Polarion(object):
             return True
         return False
 
-    def getService(self, name: str):
+    def getService(self, name: str) -> Any:
         """
         Get a WSDL service client. The name can be 'Tracker' or 'Session'
         """
-        # request user info to see if we're still logged in
-        try:
-            _user = self.services['Project']['client'].service.getUser(self.user)
-        except Exception:
-            # if not, create a new session
-            self._createSession()
+        # periodically check if the session is still valid
+        if time.time() - self._last_session_check > self._session_check_interval:
+            try:
+                self.services['Project']['client'].service.getUser(self.user)
+                self._last_session_check = time.time()
+            except Exception:
+                self._createSession()
+                self._last_session_check = time.time()
 
         if name in self.services:
             return self.services[name]['client'].service
         else:
-            raise Exception('Service does not exsist')
+            raise PolarionConnectionError(f'Service {name} does not exist')
 
-    def getTypeFromService(self, name: str, type_name):
+    def getTypeFromService(self, name: str, type_name: str) -> Any:
         """
+        Get a SOAP type from a named service.
         """
         if name in self.services:
             return self.services[name]['client'].get_type(type_name)
         else:
-            raise Exception('Service does not exsist')
+            raise PolarionConnectionError(f'Service {name} does not exist')
 
-    def getProject(self, project_id):
+    def getProject(self, project_id: str) -> Project:
         """Get a Polarion project
 
         :param project_id: The ID of the project.
@@ -247,7 +264,7 @@ class Polarion(object):
         """
         return Project(self, project_id)
 
-    def queryWorkitems(self, query: str, sort: str):
+    def queryWorkitems(self, query: str, sort: str) -> list[Workitem]:
         """Get List of workitems based on a query.
         Query is global and not project specific, so it will return workitems from all projects. Use with caution.
         Uses the Polarion query language. Documented as 'Advanced Work Item querying' in the Polarion documentation.
@@ -266,7 +283,7 @@ class Polarion(object):
         return workitems
 
 
-    def downloadFromSvn(self, url):
+    def downloadFromSvn(self, url: str) -> bytes:
 
         if self.svn_repo_url is not None:
             # user specified new url to try, use that instead of the default value
@@ -277,24 +294,17 @@ class Polarion(object):
             resp = requests.get(new_repo_url, auth=(self.user, self.password))
             if resp.ok:
                 return resp.content
-            raise Exception(f'Could not download attachment from {url}. Got error {resp.status_code}: {resp.reason}')
+            raise PolarionApiError(f'Could not download attachment from {url}. Got error {resp.status_code}: {resp.reason}')
         else:
             # try the url that was given
             resp = requests.get(url, auth=(self.user, self.password))
             if resp.ok:
                 return resp.content
 
-            # if that fails then sneakily try downloading it with the default polarion SVN repo user and password
-            resp_default = requests.get(url, auth=('polarion', 'aurora'))
-            if resp_default.ok:
-                return resp_default.content
+            raise PolarionApiError(f'Could not download attachment from {url}. Got error {resp.status_code}: {resp.reason}')
 
-            # if that also fails, tough luck.
-            raise Exception(f'Could not download attachment from {url}. Got error {resp.status_code}: {resp.reason}.\n'
-                            f'Trying with the default polarion login details yielded {resp_default.status_code}: {resp_default.reason}')
-
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'Polarion client for {self.url} with user {self.user}'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'Polarion client for {self.url} with user {self.user}'

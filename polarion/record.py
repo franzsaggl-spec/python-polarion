@@ -1,7 +1,21 @@
-from enum import Enum
-from .factory import createFromUri
+from __future__ import annotations
+
+import logging
 import os
+from enum import Enum
+from typing import Any, Optional, TYPE_CHECKING
+
 import requests
+
+from .exceptions import PolarionNotFoundError, PolarionApiError
+from .factory import createFromUri
+
+if TYPE_CHECKING:
+    from .polarion import Polarion
+    from .testrun import Testrun
+    from .user import User
+
+logger = logging.getLogger(__name__)
 
 
 class Record(object):
@@ -24,7 +38,7 @@ class Record(object):
         BLOCKED = 'blocked'
         NOTTESTED = 'not_tested'
 
-    def __init__(self, polarion, test_run, polarion_record, index):
+    def __init__(self, polarion: Polarion, test_run: Testrun, polarion_record: Any, index: int) -> None:
         self._polarion = polarion
         self._test_run = test_run
         self._polarion_record = polarion_record
@@ -34,15 +48,15 @@ class Record(object):
 
         self._buildWorkitemFromPolarion()
 
-    def __enter__(self):
+    def __enter__(self) -> Record:
         self._postpone_save = True
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self._postpone_save = False
         self.save()
 
-    def _buildWorkitemFromPolarion(self):
+    def _buildWorkitemFromPolarion(self) -> None:
         # parse all polarion attributes to this class
         for attr, value in self._polarion_record.__dict__.items():
             for key in value:
@@ -52,13 +66,13 @@ class Record(object):
         self._testcase_name = self._testcase.split('}')[1]
         self._defect = self._polarion_record.defectURI
 
-    def _reloadFromPolarion(self):
+    def _reloadFromPolarion(self) -> None:
         service = self._polarion.getService('TestManagement')
         self._polarion_record = service.getTestCaseRecords(self._test_run.uri, self._testcase)[0]
         self._buildWorkitemFromPolarion()
         # self._original_polarion_test_run = copy.deepcopy(self._polarion_test_run)
 
-    def setTestStepResult(self, step_number, result: ResultType, comment=None):
+    def setTestStepResult(self, step_number: int, result: ResultType, comment: Optional[str] = None) -> None:
         """"
         Set the result of a test step
 
@@ -87,7 +101,7 @@ class Record(object):
 
         self.save()
 
-    def getResult(self):
+    def getResult(self) -> ResultType:
         """
         Get the test result of this record
 
@@ -98,7 +112,7 @@ class Record(object):
             return self.ResultType(self.result.id)
         return self.ResultType.No
 
-    def getComment(self):
+    def getComment(self) -> Optional[str]:
         """
         Get a comment if available. The comment may contain HTML if edited in Polarion!
 
@@ -116,7 +130,7 @@ class Record(object):
         """
         return self._testcase_name
 
-    def getTestCaseName(self):
+    def getTestCaseName(self) -> str:
         """
         Get the test case name including prefix
 
@@ -125,7 +139,7 @@ class Record(object):
         """
         return self._testcase_name
 
-    def setComment(self, comment):
+    def setComment(self, comment: str) -> None:
         """
         tries to get the severity enum of this workitem type
         When it fails to get it, the list will be empty
@@ -135,7 +149,7 @@ class Record(object):
         self.comment = self._polarion.TextType(
             content=comment, type='text/html', contentLossy=False)
 
-    def setResult(self, result: ResultType = ResultType.FAILED, comment=None):
+    def setResult(self, result: ResultType = ResultType.FAILED, comment: Optional[str] = None) -> None:
         """
         Set the result of this record and save it.
 
@@ -151,7 +165,7 @@ class Record(object):
                 id=result.value)
         self.save()
 
-    def getExecutingUser(self):
+    def getExecutingUser(self) -> Optional[User]:
         """
         Gets the executing user if the test was executed
 
@@ -162,7 +176,7 @@ class Record(object):
             return createFromUri(self._polarion, None, self.executedByURI)
         return None
 
-    def hasAttachment(self):
+    def hasAttachment(self) -> bool:
         """
         Checks if the Record has attachments
 
@@ -173,7 +187,7 @@ class Record(object):
             return True
         return False
     
-    def getAttachment(self, file_name):
+    def getAttachment(self, file_name: str) -> bytes:
         """
         Get the attachment data
 
@@ -190,9 +204,9 @@ class Record(object):
         if url is not None:
             return self._polarion.downloadFromSvn(url)
         else:
-            raise Exception(f'Could not find attachment with name {file_name}')
+            raise PolarionNotFoundError(f'Could not find attachment with name {file_name}')
 
-    def saveAttachmentAsFile(self, file_name, file_path):
+    def saveAttachmentAsFile(self, file_name: str, file_path: str) -> None:
         """
         Save an attachment to file.
 
@@ -203,7 +217,7 @@ class Record(object):
         with open(file_path, "wb") as file:
             file.write(bin)
 
-    def deleteAttachment(self, file_name):
+    def deleteAttachment(self, file_name: str) -> None:
         """
         Delete an attachment.
 
@@ -213,7 +227,7 @@ class Record(object):
         service.deleteAttachmentFromTestRecord(self._test_run.uri, self._index, file_name)
         self._reloadFromPolarion()
 
-    def addAttachment(self, file_path, title):
+    def addAttachment(self, file_path: str, title: str) -> None:
         """
         Upload an attachment
 
@@ -226,7 +240,7 @@ class Record(object):
             service.addAttachmentToTestRecord(self._test_run.uri, self._index, file_name, title, file_content.read())
         self._reloadFromPolarion()
 
-    def testStepHasAttachment(self, step_index):
+    def testStepHasAttachment(self, step_index: int) -> bool:
         """
         Checks if the a test step has attachments
 
@@ -240,7 +254,7 @@ class Record(object):
             return True
         return False
     
-    def getAttachmentFromTestStep(self, step_index, file_name):
+    def getAttachmentFromTestStep(self, step_index: int, file_name: str) -> bytes:
         """
         Get the attachment data from a test step
 
@@ -258,9 +272,9 @@ class Record(object):
         if url is not None:
             return self._polarion.downloadFromSvn(url)
         else:
-            raise Exception(f'Could not find attachment with name {file_name}')
+            raise PolarionNotFoundError(f'Could not find attachment with name {file_name}')
 
-    def saveAttachmentFromTestStepAsFile(self, step_index, file_name, file_path):
+    def saveAttachmentFromTestStepAsFile(self, step_index: int, file_name: str, file_path: str) -> None:
         """
         Save an attachment to file from a test step
 
@@ -272,7 +286,7 @@ class Record(object):
         with open(file_path, "wb") as file:
             file.write(bin)
 
-    def deleteAttachmentFromTestStep(self, step_index, file_name):
+    def deleteAttachmentFromTestStep(self, step_index: int, file_name: str) -> None:
         """
         Delete an attachment from a test step
 
@@ -283,7 +297,7 @@ class Record(object):
         service.deleteAttachmentFromTestStep(self._test_run.uri, self._index, step_index, file_name)
         self._reloadFromPolarion()
 
-    def addAttachmentToTestStep(self, step_index, file_path, title):
+    def addAttachmentToTestStep(self, step_index: int, file_path: str, title: str) -> None:
         """
         Upload an attachment to a test step
 
@@ -297,7 +311,7 @@ class Record(object):
             service.addAttachmentToTestStep(self._test_run.uri, self._index, step_index, file_name, title, file_content.read())
         self._reloadFromPolarion()
 
-    def save(self):
+    def save(self) -> None:
         """
         Saves the current test record
         """
@@ -314,8 +328,8 @@ class Record(object):
             self._test_run.uri, new_item)
         self._reloadFromPolarion()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'{self._testcase_name} in {self._test_run.id} ({self.getResult()} on {self.executed})'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self._testcase_name} in {self._test_run.id} ({self.getResult()} on {self.executed})'

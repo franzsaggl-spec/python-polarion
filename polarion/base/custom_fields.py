@@ -1,17 +1,27 @@
+from __future__ import annotations
+
+import logging
 from abc import ABC
+from typing import Any, Optional, TYPE_CHECKING
 
 from polarion.base.polarion_object import PolarionObject
+from polarion.exceptions import PolarionFieldError
+
+if TYPE_CHECKING:
+    from polarion.polarion import Polarion
+
+logger = logging.getLogger(__name__)
 
 
 class CustomFields(PolarionObject, ABC):
-    def __init__(self, polarion, project, _id=None, uri=None):
+    def __init__(self, polarion: Polarion, project: Optional[Any], _id: Optional[str] = None, uri: Optional[str] = None) -> None:
         super().__init__(polarion, project, _id, uri)
-        self.customFields = None
+        self.customFields: Optional[Any] = None
 
-    def isCustomFieldAllowed(self, key):
+    def isCustomFieldAllowed(self, key: str) -> bool:
         raise NotImplementedError
 
-    def setCustomField(self, key, value):
+    def setCustomField(self, key: str, value: Any) -> None:
         """
         Set the custom field 'key' to the value
         :param key: custom field key
@@ -19,7 +29,7 @@ class CustomFields(PolarionObject, ABC):
         :return: None
         """
         if not self.isCustomFieldAllowed(key):
-            raise Exception(f"key {key} is not allowed for this workitem")
+            raise PolarionFieldError(f"key {key} is not allowed for this workitem")
 
         if self.customFields is None:
             # nothing exists, create a custom field structure
@@ -36,7 +46,7 @@ class CustomFields(PolarionObject, ABC):
                 self.customFields.Custom.append(self._polarion.CustomType(key=key, value=value))
         self.save()
 
-    def getCustomField(self, key):
+    def getCustomField(self, key: str) -> Optional[Any]:
         """
         Get the custom field 'key' to the value
         :param key: custom field key

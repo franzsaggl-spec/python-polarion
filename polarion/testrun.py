@@ -1,11 +1,24 @@
+from __future__ import annotations
+
 import copy
+import logging
 import os
+from typing import Any, Optional, TYPE_CHECKING
+
 import requests
 from zeep import xsd
+
 from .base.comments import Comments
 from .base.custom_fields import CustomFields
+from .exceptions import PolarionNotFoundError, PolarionFieldError, PolarionApiError
 from .record import Record
 from .factory import Creator
+
+if TYPE_CHECKING:
+    from .polarion import Polarion
+    from .workitem import Workitem
+
+logger = logging.getLogger(__name__)
 
 
 class Testrun(CustomFields, Comments):
@@ -19,28 +32,28 @@ class Testrun(CustomFields, Comments):
     :ivar records: An array of :class:`.Record`
     """
 
-    def __init__(self, polarion, uri=None, polarion_test_run=None):
+    def __init__(self, polarion: Polarion, uri: Optional[str] = None, polarion_test_run: Optional[Any] = None) -> None:
         super().__init__(polarion, None, None, uri)
 
         if uri is not None:
             service = self._polarion.getService('TestManagement')
             try:
                 self._polarion_test_run = service.getTestRunByUri(uri)
-            except Exception:
-                raise Exception(f'Cannot find test run {uri}')
+            except Exception as e:
+                raise PolarionNotFoundError(f'Cannot find test run {uri}') from e
 
         elif polarion_test_run is not None:
             self._polarion_test_run = polarion_test_run
         else:
-            raise Exception(f'Provide either an uri or polarion_test_run ')
+            raise PolarionFieldError('Provide either an uri or polarion_test_run')
 
         self._original_polarion_test_run = copy.deepcopy(self._polarion_test_run)
         self._buildWorkitemFromPolarion()
 
-    def isCustomFieldAllowed(self, key):
+    def isCustomFieldAllowed(self, key: str) -> bool:
         return True
         
-    def _buildWorkitemFromPolarion(self):
+    def _buildWorkitemFromPolarion(self) -> None:
         if self._polarion_test_run is not None and not self._polarion_test_run.unresolvable:
             for attr, value in self._polarion_test_run.__dict__.items():
                 for key in value:
@@ -60,15 +73,15 @@ class Testrun(CustomFields, Comments):
                         self._record_dict[new_record.testcase_id] = new_record
 
         else:
-            raise Exception(f'Testrun not retrieved from Polarion')
+            raise PolarionNotFoundError('Testrun not retrieved from Polarion')
 
-    def _reloadFromPolarion(self):
+    def _reloadFromPolarion(self) -> None:
         service = self._polarion.getService('TestManagement')
         self._polarion_test_run = service.getTestRunByUri(self.uri)
         self._buildWorkitemFromPolarion()
         self._original_polarion_test_run = copy.deepcopy(self._polarion_test_run)
 
-    def hasTestCase(self, id):
+    def hasTestCase(self, id: str) -> bool:
         """
         Checks if the the specified test case id is in the records.
 
@@ -79,7 +92,7 @@ class Testrun(CustomFields, Comments):
             return True
         return False
 
-    def getTestCase(self, id):
+    def getTestCase(self, id: str) -> Optional[Record]:
         """
         Get the specified test case record from the test run records
 
@@ -90,7 +103,7 @@ class Testrun(CustomFields, Comments):
             return self._record_dict[id]
         return None
 
-    def hasAttachment(self):
+    def hasAttachment(self) -> bool:
         """
         Checks if the test run has attachments
 
@@ -101,7 +114,7 @@ class Testrun(CustomFields, Comments):
             return True
         return False
 
-    def getAttachment(self, file_name):
+    def getAttachment(self, file_name: str) -> bytes:
         """
         Get the attachment data
 
@@ -114,9 +127,9 @@ class Testrun(CustomFields, Comments):
 
         if at is not None:
             return self._polarion.downloadFromSvn(at.url)
-        raise Exception(f'Could not download attachment {file_name}')
+        raise PolarionApiError(f'Could not download attachment {file_name}')
 
-    def saveAttachmentAsFile(self, file_name, file_path):
+    def saveAttachmentAsFile(self, file_name: str, file_path: str) -> None:
         """
         Save an attachment to file.
 
@@ -127,7 +140,7 @@ class Testrun(CustomFields, Comments):
         with open(file_path, "wb") as file:
             file.write(binary)
 
-    def deleteAttachment(self, file_name):
+    def deleteAttachment(self, file_name: str) -> None:
         """
         Delete an attachment.
 
@@ -137,7 +150,7 @@ class Testrun(CustomFields, Comments):
         service.deleteTestRunAttachment(self.uri, file_name)
         self._reloadFromPolarion()
 
-    def addAttachment(self, file_path, title):
+    def addAttachment(self, file_path: str, title: str) -> None:
         """
         Upload an attachment
 
@@ -150,7 +163,7 @@ class Testrun(CustomFields, Comments):
             service.addAttachmentToTestRun(self.uri, file_name, title, file_content.read())
         self._reloadFromPolarion()
 
-    def addTestcase(self, workitem):
+    def addTestcase(self, workitem: Workitem) -> None:
         """
         Add a workitem to the test run. A test case cannot be added to a template.
         :param workitem: Workitem object
@@ -160,7 +173,7 @@ class Testrun(CustomFields, Comments):
         service.addTestRecordToTestRun(self.uri, new_record)
         self._reloadFromPolarion()
 
-    def updateAttachment(self, file_path, title):
+    def updateAttachment(self, file_path: str, title: str) -> None:
         """
         Upload an attachment
 
@@ -173,7 +186,7 @@ class Testrun(CustomFields, Comments):
             service.updateTestRunAttachment(self.uri, file_name, title, file_content.read())
         self._reloadFromPolarion()
 
-    def save(self):
+    def save(self) -> None:
         """
         Update the testrun in polarion
         """
@@ -194,13 +207,13 @@ class Testrun(CustomFields, Comments):
             service.updateTestRun(updated_item)
             self._reloadFromPolarion()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'Testrun {self.id} ({self.title}) created {self.created}'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'Testrun {self.id} ({self.title}) created {self.created}'
 
 
 class TestrunCreator(Creator):
-    def createFromUri(self, polarion, project, uri):
+    def createFromUri(self, polarion: Polarion, project: Any, uri: str) -> Testrun:
         return Testrun(polarion, uri)
