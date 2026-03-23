@@ -44,9 +44,6 @@ test = ["pytest", "ruff"]
 [tool.setuptools.packages.find]
 include = ["polarion*"]
 
-[tool.pytest.ini_options]
-testpaths = ["tests/unit"]
-
 [tool.ruff]
 target-version = "py39"
 line-length = 120
