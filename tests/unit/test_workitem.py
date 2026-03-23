@@ -242,3 +242,78 @@ def test_get_approver_users_empty_when_none(mock_polarion, mock_project, mock_wo
     wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
     wi.approvals = None
     assert wi.getApproverUsers() == []
+
+
+# ------------------------------------------------------------------
+# to_dict()
+# ------------------------------------------------------------------
+
+def test_to_dict_default_fields(mock_polarion, mock_project, mock_workitem_data):
+    """to_dict() with no args should return minimal summary fields."""
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    result = wi.to_dict()
+
+    # Default fields: id, title, type, status
+    assert 'id' in result
+    assert 'title' in result
+    assert 'type' in result
+    assert 'status' in result
+
+    assert result['id'] == 'WI-001'
+    assert result['title'] == 'Test workitem'
+    assert len(result) == 4  # Only the 4 minimal fields
+
+
+def test_to_dict_custom_fields(mock_polarion, mock_project, mock_workitem_data):
+    """to_dict() should return only requested fields."""
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    result = wi.to_dict(fields=['id', 'title'])
+
+    assert 'id' in result
+    assert 'title' in result
+    assert 'type' not in result
+    assert 'status' not in result
+    assert len(result) == 2
+
+
+def test_to_dict_handles_missing_field(mock_polarion, mock_project, mock_workitem_data):
+    """to_dict() should skip missing fields gracefully."""
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    result = wi.to_dict(fields=['id', 'nonexistent_field'])
+
+    assert 'id' in result
+    # nonexistent_field should be skipped, not crash
+    assert 'nonexistent_field' not in result
+
+
+# ------------------------------------------------------------------
+# __repr__ truncation
+# ------------------------------------------------------------------
+
+def test_repr_truncates_long_title(mock_polarion, mock_project, mock_workitem_data):
+    """__repr__ should truncate titles longer than 50 chars."""
+    # Set a long title
+    long_title = 'A' * 100
+    mock_workitem_data.title = long_title
+    mock_workitem_data.__dict__['__values__']['title'] = long_title
+
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    r = repr(wi)
+
+    # Should contain truncated title with ellipsis
+    assert 'WI-001' in r
+    assert '...' in r
+    assert len(r) < len(long_title)  # Much shorter than full title
+
+
+def test_repr_does_not_truncate_short_title(mock_polarion, mock_project, mock_workitem_data):
+    """__repr__ should not truncate titles 50 chars or less."""
+    short_title = 'Short title'
+    mock_workitem_data.title = short_title
+    mock_workitem_data.__dict__['__values__']['title'] = short_title
+
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+    r = repr(wi)
+
+    assert short_title in r
+    assert '...' not in r

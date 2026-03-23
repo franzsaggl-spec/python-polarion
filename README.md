@@ -63,6 +63,59 @@ plan.removeFromPlan(workitem)
 More examples to be found in the quick start section of the documentation.
 [Go to the documentation](https://python-polarion.readthedocs.io/)
 
+# Usage in CLI Tools and AI Assistants
+
+When using python-polarion in CLI tools or AI assistants like Claude Code, follow these context-efficient patterns to avoid overwhelming output buffers and context windows:
+
+**✅ Recommended patterns:**
+```python
+# Count first, then decide whether to fetch
+count = project.countWorkitems("status:open AND type:bug")
+print(f"Found {count} open bugs")  # Just a number, not full objects
+if count < 50:
+    items = project.searchWorkitemFullItem("status:open AND type:bug", limit=50)
+
+# Use lightweight searches for IDs/minimal fields only
+workitem_refs = project.searchWorkitem("status:open", field_list=['id', 'title', 'status'])
+
+# Get clean summaries for CLI output
+wi = project.getWorkitem("PROJ-123")
+print(wi.to_dict())  # {'id': 'PROJ-123', 'title': '...', 'type': 'bug', 'status': 'open'}
+
+# Specify limits explicitly to control result size
+recent_bugs = project.searchWorkitemFullItem("type:bug", order="created", limit=10)
+```
+
+**❌ Patterns to avoid:**
+```python
+# Don't fetch unlimited results (can return thousands of items!)
+all_items = project.searchWorkitemFullItem("", limit=-1)
+
+# Don't fetch full object graphs when you just need URIs
+doc = project.getDocument("space/doc")
+all_workitems = doc.getWorkitems()  # Use getWorkitemUris() instead
+
+# Don't ignore the default limit and accidentally get only 100 when you need more
+# Be explicit: limit=200 if you need 200, or limit=-1 if you truly need all
+```
+
+**Why this matters:**
+CLI tools and AI assistants have limited output buffers. Fetching 1000 workitems with 50+ fields each can:
+- Crash CLI tools with too much output
+- Consume AI context windows (Claude Code shows all tool outputs in conversation)
+- Make debugging difficult (too much noise in logs)
+- Cause timeouts and poor performance
+
+**Context-efficient methods:**
+- `project.countWorkitems(query)` - Get count without fetching objects
+- `project.countPlans(query)` - Get plan count
+- `project.countTestRuns(query)` - Get test run count
+- `workitem.to_dict(fields)` - Get clean dictionary representation
+- `plan.to_dict()`, `testrun.to_dict()` - Summaries for other objects
+
+**Default limits:**
+Starting from version 2.0, search methods default to `limit=100` instead of unlimited. This prevents accidental large fetches. To get all results, explicitly pass `limit=-1`.
+
 # How does it work?
 
 This project uses the SOAP API of Polarion. This API exposes most of the user interactions you can do with Polarion like creating or editing workitems, plans and test runs.

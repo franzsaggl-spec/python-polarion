@@ -440,6 +440,10 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         """
         Get linked workitems both linked and back linked item will show up.
 
+        ⚠️ Performance warning: Fetches all linked workitems as full objects.
+        For large numbers of links, this may be slow. Consider using getLinkedItemWithRoles()
+        and filtering manually if you need specific link types.
+
         @return: Array of  Workitem
         @return:
         """
@@ -751,8 +755,41 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         # survived all exits, must be good then
         return True
 
+    def to_dict(self, fields: Optional[list[str]] = None) -> dict[str, Any]:
+        """
+        Return a dictionary representation of the workitem.
+
+        :param fields: List of field names to include. If None, returns minimal summary with: id, title, type, status
+        :return: Dictionary with requested fields
+        :rtype: dict
+        """
+        if fields is None:
+            # Return minimal summary for context efficiency
+            fields = ['id', 'title', 'type', 'status']
+
+        result = {}
+        for field in fields:
+            # Use _id instead of id since id is stored as _id internally
+            if field == 'id':
+                result[field] = self._id
+            elif hasattr(self, field):
+                value = getattr(self, field)
+                # Convert complex objects to simple representations
+                if hasattr(value, '__dict__') and not isinstance(value, (str, int, float, bool, date, datetime)):
+                    if hasattr(value, 'id'):
+                        result[field] = value.id
+                    else:
+                        result[field] = str(value)
+                else:
+                    result[field] = value
+            else:
+                logger.warning(f"Field '{field}' not found on workitem {self._id}")
+
+        return result
+
     def __repr__(self) -> str:
-        return f'{self._id}: {self.title}'
+        title_preview = self.title[:50] + '...' if len(self.title) > 50 else self.title
+        return f'{self._id}: {title_preview}'
 
     __str__ = __repr__
 

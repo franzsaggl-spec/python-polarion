@@ -220,3 +220,34 @@ def test_save_with_changes(mock_polarion, mock_project, mock_plan_data):
     planning_service.updatePlan.assert_called_once()
     call_args = planning_service.updatePlan.call_args[0][0]
     assert call_args['uri'] == plan.uri
+
+
+# ------------------------------------------------------------------
+# to_dict()
+# ------------------------------------------------------------------
+
+def test_to_dict_default_fields(mock_polarion, mock_project, mock_plan_data):
+    """to_dict() with no args should return minimal summary fields."""
+    plan = _make_plan(mock_polarion, mock_project, mock_plan_data)
+    result = plan.to_dict()
+
+    # Default fields: id, name, startDate, dueDate
+    assert 'id' in result
+    assert 'name' in result
+    assert 'startDate' in result
+    assert 'dueDate' in result
+
+    assert result['id'] == 'PLAN-001'
+    assert result['name'] == 'Release 1.0'
+    assert len(result) == 4
+
+
+def test_to_dict_custom_fields(mock_polarion, mock_project, mock_plan_data):
+    """to_dict() should return only requested fields."""
+    plan = _make_plan(mock_polarion, mock_project, mock_plan_data)
+    result = plan.to_dict(fields=['id', 'name'])
+
+    assert 'id' in result
+    assert 'name' in result
+    assert 'startDate' not in result
+    assert len(result) == 2

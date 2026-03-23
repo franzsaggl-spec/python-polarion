@@ -100,12 +100,12 @@ class Project:
         return Plan(self.polarion, self, new_plan_name=new_plan_name, new_plan_id=new_plan_id, new_plan_template=new_plan_template,
                     new_plan_parent=new_plan_parent)
 
-    def searchPlan(self, query: str = '', order: str = 'Created', limit: int = -1) -> list[Any]:
+    def searchPlan(self, query: str = '', order: str = 'Created', limit: int = 100) -> list[Any]:
         """Query for available plans. This will return the polarion data structures.
 
         :param query: The query to use while searching
         :param order: Order by
-        :param limit: The limit of plans, -1 for no limit
+        :param limit: The limit of plans. Default 100. Use -1 for no limit (warning: may return large results)
         :return: The search results
         :rtype: dict[]
         """
@@ -113,12 +113,12 @@ class Project:
         service = self.polarion.getService('Planning')
         return service.searchPlans(query, order, limit)
 
-    def searchPlanFullItem(self, query: str = '', order: str = 'Created', limit: int = -1) -> list[Plan]:
+    def searchPlanFullItem(self, query: str = '', order: str = 'Created', limit: int = 100) -> list[Plan]:
         """Query for available plans. This will query for the plans and then fetch all result. May take a while for a big search with many results.
 
         :param query: The query to use while searching
         :param order: Order by
-        :param limit: The limit of plans, -1 for no limit
+        :param limit: The limit of plans. Default 100. Use -1 for no limit (warning: may return large results and consume significant memory)
         :return: The search results
         :rtype: Plan[]
         """
@@ -134,17 +134,17 @@ class Project:
         """
         return Workitem(self.polarion, self, new_workitem_type=workitem_type, new_workitem_fields=new_workitem_fields)
 
-    def searchWorkitem(self, query: str = '', order: str = 'Created', field_list: Optional[list[str]] = None, limit: int = -1) -> list[Any]:
+    def searchWorkitem(self, query: str = '', order: str = 'Created', field_list: Optional[list[str]] = None, limit: int = 100) -> list[Any]:
         """Query for available workitems. This will only query for the items.
         If you also want the Workitems to be retrieved, used searchWorkitemFullItem.
 
         For retrieving custom field using field_list, use the following syntax:
         field_list=['customFields.<key of custom field here>']
-        
+
         :param query: The query to use while searching
         :param order: Order by
         :param field_list: list of fields to retrieve for each search result
-        :param limit: The limit of workitems, -1 for no limit
+        :param limit: The limit of workitems. Default 100. Use -1 for no limit (warning: may return large results)
         :return: The search results
         :rtype: Workitem[] but only with the given fields set
         """
@@ -156,7 +156,7 @@ class Project:
         return service.queryWorkItemsLimited(
             query, order, field_list, limit)
     
-    def searchWorkitemInBaseline(self, baselineRevision: str, query: str = '', sort: str = 'uri', field_list: Optional[list[str]] = None, limit: int = -1) -> list[Any]:
+    def searchWorkitemInBaseline(self, baselineRevision: str, query: str = '', sort: str = 'uri', field_list: Optional[list[str]] = None, limit: int = 100) -> list[Any]:
         """Query for available workitems in a baseline. This will only query for the items.
         If you also want the Workitems to be retrieved, used searchWorkitemFullItemInBaseline.
 
@@ -167,7 +167,7 @@ class Project:
         :param query: The query to use while searching
         :param sort: Sort by
         :param fieldList: list of fields to retrieve for each search result
-        :param limit: The limit of workitems, -1 for no limit
+        :param limit: The limit of workitems. Default 100. Use -1 for no limit (warning: may return large results)
         :return: The search results
         :rtype: Workitem[] but only with the given fields set
         """
@@ -179,24 +179,24 @@ class Project:
         return service.queryWorkItemsInBaselineLimited(
             query, sort, baselineRevision, field_list, limit)
 
-    def searchWorkitemFullItem(self, query: str = '', order: str = 'Created', limit: int = -1) -> list[Workitem]:
+    def searchWorkitemFullItem(self, query: str = '', order: str = 'Created', limit: int = 100) -> list[Workitem]:
         """Query for available workitems. This will query for the items and then fetch all result. May take a while for a big search with many results.
 
         :param query: The query to use while searching
         :param order: Order by
-        :param limit: The limit of workitems, -1 for no limit
+        :param limit: The limit of workitems. Default 100. Use -1 for no limit (warning: fetches full objects, may consume significant memory and time)
         :return: The search results
         :rtype: Workitem[]
         """
         return [Workitem(self.polarion, self, w.id) for w in self.searchWorkitem(query, order, ['id'], limit)]
     
-    def searchWorkitemFullItemInBaseline(self, baselineRevision: str, query: str = '', sort: str = 'uri', limit: int = -1) -> list[Workitem]:
+    def searchWorkitemFullItemInBaseline(self, baselineRevision: str, query: str = '', sort: str = 'uri', limit: int = 100) -> list[Workitem]:
         """Query for available workitems in baseline. This will query for the items and then fetch all result. May take a while for a big search with many results.
 
         :param baselineRevision: The revision number of the baseline to search in
         :param query: The query to use while searching
         :param sort: Sort by
-        :param limit: The limit of workitems, -1 for no limit
+        :param limit: The limit of workitems. Default 100. Use -1 for no limit (warning: fetches full objects, may consume significant memory and time)
         :return: The search results
         :rtype: Workitem[]
         """
@@ -211,12 +211,12 @@ class Project:
         """
         return Testrun(self.polarion, f'subterra:data-service:objects:/default/{self.id}${{TestRun}}{id}')
 
-    def searchTestRuns(self, query: str = '', order: str = 'Created', limit: int = -1) -> list[Testrun]:
+    def searchTestRuns(self, query: str = '', order: str = 'Created', limit: int = 100) -> list[Testrun]:
         """Query for available test runs
 
         :param query: The query to use while searching
         :param order: Order by
-        :param limit: The limit of test runs, -1 for no limit
+        :param limit: The limit of test runs. Default 100. Use -1 for no limit (warning: may return large results)
         :return: The request testrun
         :rtype: Testrun[]
         """
@@ -301,6 +301,42 @@ class Project:
         :return: Document
         """
         return Document(self.polarion, self, location=location)
+
+    def countWorkitems(self, query: str = '') -> int:
+        """
+        Count workitems matching a query without fetching full objects.
+        Efficient for checking "how many items match" before deciding to fetch.
+
+        :param query: The query to use while searching
+        :return: The number of matching workitems
+        :rtype: int
+        """
+        results = self.searchWorkitem(query, order='Created', field_list=['id'], limit=-1)
+        return len(results)
+
+    def countPlans(self, query: str = '') -> int:
+        """
+        Count plans matching a query without fetching full objects.
+        Efficient for checking "how many plans match" before deciding to fetch.
+
+        :param query: The query to use while searching
+        :return: The number of matching plans
+        :rtype: int
+        """
+        results = self.searchPlan(query, order='Created', limit=-1)
+        return len(results)
+
+    def countTestRuns(self, query: str = '') -> int:
+        """
+        Count test runs matching a query without fetching full objects.
+        Efficient for checking "how many test runs match" before deciding to fetch.
+
+        :param query: The query to use while searching
+        :return: The number of matching test runs
+        :rtype: int
+        """
+        results = self.searchTestRuns(query, order='Created', limit=-1)
+        return len(results)
 
     def __repr__(self) -> str:
         return f'Polarion project {self.name} prefix {self.tracker_prefix}'

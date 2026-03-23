@@ -84,6 +84,11 @@ class Document(CustomFields):
         """
         Get all complete workitems.
         That may take some time on a large document.
+
+        ⚠️ Performance warning: Fetches full workitem objects for all items in the document.
+        For documents with many workitems, use getWorkitemUris() to get URIs only, then fetch
+        specific workitems as needed.
+
         :return: Workitem[]
         """
         workitems = []
@@ -207,8 +212,38 @@ class Document(CustomFields):
         service = self._polarion.getService('Tracker')
         service.deleteModule(self.uri)
 
+    def to_dict(self, fields: Optional[list[str]] = None) -> dict[str, Any]:
+        """
+        Return a dictionary representation of the document.
+
+        :param fields: List of field names to include. If None, returns minimal summary with: moduleFolder, title, moduleName
+        :return: Dictionary with requested fields
+        :rtype: dict
+        """
+        from datetime import date, datetime
+
+        if fields is None:
+            # Return minimal summary for context efficiency
+            fields = ['moduleFolder', 'title', 'moduleName']
+
+        result = {}
+        for field in fields:
+            if hasattr(self, field):
+                value = getattr(self, field)
+                # Convert complex objects to simple representations
+                if hasattr(value, '__dict__') and not isinstance(value, (str, int, float, bool, date, datetime)):
+                    if hasattr(value, 'id'):
+                        result[field] = value.id
+                    else:
+                        result[field] = str(value)
+                else:
+                    result[field] = value
+
+        return result
+
     def __repr__(self) -> str:
-        return f'Polarion document {self.title} in {self.moduleFolder}'
+        title_preview = self.title[:50] + '...' if len(self.title) > 50 else self.title
+        return f'Polarion document {title_preview} in {self.moduleFolder}'
 
     __str__ = __repr__
 

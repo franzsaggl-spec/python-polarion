@@ -181,8 +181,36 @@ class Testrun(CustomFields, Comments):
             service.updateTestRun(updated_item)
             self._reloadFromPolarion()
 
+    def to_dict(self, fields: Optional[list[str]] = None) -> dict[str, Any]:
+        """
+        Return a dictionary representation of the testrun.
+
+        :param fields: List of field names to include. If None, returns minimal summary with: id, title, created, isTemplate
+        :return: Dictionary with requested fields
+        :rtype: dict
+        """
+        if fields is None:
+            # Return minimal summary for context efficiency
+            fields = ['id', 'title', 'created', 'isTemplate']
+
+        result = {}
+        for field in fields:
+            if hasattr(self, field):
+                value = getattr(self, field)
+                # Convert complex objects to simple representations
+                if hasattr(value, '__dict__') and not isinstance(value, (str, int, float, bool)):
+                    if hasattr(value, 'id'):
+                        result[field] = value.id
+                    else:
+                        result[field] = str(value)
+                else:
+                    result[field] = value
+
+        return result
+
     def __repr__(self) -> str:
-        return f'Testrun {self.id} ({self.title}) created {self.created}'
+        title_preview = self.title[:50] + '...' if len(self.title) > 50 else self.title
+        return f'Testrun {self.id} ({title_preview}) created {self.created}'
 
     __str__ = __repr__
 
