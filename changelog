@@ -1,6 +1,19 @@
 Changelog
 =========
 
+V2.0.2 (2026-03-24)
+-------------------
+- Internal refactor: decomposed Workitem internals into focused behavior modules under `polarion/workitem_actions/`.
+- Internal refactor: decomposed Project facade internals into focused modules under `polarion/project_actions/`.
+- Improved exception handling consistency in core object paths (narrowed broad catches where safe).
+- Added/used response normalization helpers (`ensure_dict`, `ensure_str_list`, `ensure_list`) to reduce SOAP parsing guard boilerplate.
+- Docs/metadata cleanup: aligned documented Python requirement with package metadata.
+- Test noise cleanup: removed pytest class-collection warnings for model classes.
+- Formatting/lint consistency fixes in touched modules.
+
+Notes:
+- No intended public API breaking changes; this release focuses on internal maintainability and reliability.
+
 V1.4.0
 ------
 - Add cache option to zeep (#141) [TristanFAURE]
