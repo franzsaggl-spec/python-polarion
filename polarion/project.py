@@ -178,7 +178,9 @@ class Project:
 
         :param enum_name: Enum name (e.g. "requirement-status")
         """
-        result = ensure_list(self.polarion._soap.call("Tracker", "getAllEnumOptionsForId", projectId=self.id, enumId=enum_name))
+        result = ensure_list(
+            self.polarion._soap.call("Tracker", "getAllEnumOptionsForId", projectId=self.id, enumId=enum_name)
+        )
         return list(dict.fromkeys(ensure_dict(a).get("id", str(a)) for a in result))
 
     def get_test_run(self, id: str) -> Testrun:
