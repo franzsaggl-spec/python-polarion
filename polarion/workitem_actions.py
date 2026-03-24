@@ -10,7 +10,7 @@ from .exceptions import PolarionApiError, PolarionFieldError, PolarionNotFoundEr
 from .soap.envelope import NIL
 from .types import TextContent
 from .user import User
-from .utils import ensure_list, extract_id
+from .utils import ensure_dict, ensure_list, extract_id
 
 if TYPE_CHECKING:
     from .document import Document
@@ -31,10 +31,11 @@ class WorkitemActionsMixin:
         approval_list = ensure_list(self.approvals)
         users = []
         for a in approval_list:
-            if isinstance(a, dict):
-                user_data = a.get("user", {})
+            a_data = ensure_dict(a)
+            if a_data:
+                user_data = ensure_dict(a_data.get("user")) or {"id": a_data.get("user")}
                 try:
-                    users.append(User(self._polarion, user_data if isinstance(user_data, dict) else {"id": user_data}))
+                    users.append(User(self._polarion, user_data))
                 except (PolarionApiError, PolarionNotFoundError, PolarionFieldError) as e:
                     logger.warning("Skipping unresolvable approver user %s: %s", user_data, e)
         return users
