@@ -1,59 +1,64 @@
+"""Custom fields mixin for Polarion objects."""
+
 from __future__ import annotations
 
 from abc import ABC
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from polarion.base.polarion_object import PolarionObject
 from polarion.exceptions import PolarionFieldError
 
 if TYPE_CHECKING:
-    from polarion.polarion import Polarion
+    from polarion.client import Polarion
 
 
 class CustomFields(PolarionObject, ABC):
-    def __init__(self, polarion: Polarion, project: Any, _id: Optional[str] = None, uri: Optional[str] = None) -> None:
-        super().__init__(polarion, project, _id, uri)
-        self.customFields: Optional[Any] = None
+    """Mixin providing custom field get/set operations."""
 
-    def isCustomFieldAllowed(self, key: str) -> bool:
+    def __init__(
+        self,
+        polarion: Polarion,
+        project: Any,
+        id: str | None = None,
+        uri: str | None = None,
+    ) -> None:
+        super().__init__(polarion, project, id, uri)
+        self.customFields: list[dict[str, Any]] | None = None
+
+    def is_custom_field_allowed(self, key: str) -> bool:
         raise NotImplementedError
 
-    def setCustomField(self, key: str, value: Any) -> None:
+    def set_custom_field(self, key: str, value: Any) -> None:
+        """Set a custom field value.
+
+        :param key: Custom field key
+        :param value: Custom field value
+        :raises PolarionFieldError: If the key is not allowed
         """
-        Set the custom field 'key' to the value
-        :param key: custom field key
-        :param value: custom field value
-        :return: None
-        """
-        if not self.isCustomFieldAllowed(key):
-            raise PolarionFieldError(f"key {key} is not allowed for this workitem")
+        if not self.is_custom_field_allowed(key):
+            raise PolarionFieldError(f"key {key} is not allowed for this item")
 
         if self.customFields is None:
-            # nothing exists, create a custom field structure
-            self.customFields = self._polarion.ArrayOfCustomType()
-            self.customFields.Custom.append(self._polarion.CustomType(key=key, value=value))
-        else:
-            custom_field = next(
-                (custom_field for custom_field in self.customFields.Custom if custom_field["key"] == key), None
-            )
-            if custom_field is not None:
-                # custom field is there and we can update the value
-                custom_field.value = value
-            else:
-                # custom field is not there, add it.
-                self.customFields.Custom.append(self._polarion.CustomType(key=key, value=value))
+            self.customFields = []
+
+        # Update existing or add new
+        for cf in self.customFields:
+            if cf.get("key") == key:
+                cf["value"] = value
+                self.save()
+                return
+
+        self.customFields.append({"key": key, "value": value})
         self.save()
 
-    def getCustomField(self, key: str) -> Optional[Any]:
-        """
-        Get the custom field 'key' to the value
-        :param key: custom field key
-        :return: custom field value if exists, else None
+    def get_custom_field(self, key: str) -> Any | None:
+        """Get a custom field value.
+
+        :param key: Custom field key
+        :return: Custom field value, or None if not set
         """
         if self.customFields is not None:
-            custom_field = next(
-                (custom_field for custom_field in self.customFields.Custom if custom_field["key"] == key), None
-            )
-            if custom_field is not None:
-                return custom_field.value
+            for cf in self.customFields:
+                if cf.get("key") == key:
+                    return cf.get("value")
         return None

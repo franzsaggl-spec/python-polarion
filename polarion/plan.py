@@ -1,8 +1,10 @@
+"""Polarion Plan model."""
+
 from __future__ import annotations
 
 import copy
 from datetime import date, datetime
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from .base.polarion_object import PolarionObject
 from .exceptions import PolarionFieldError, PolarionNotFoundError
@@ -10,195 +12,189 @@ from .factory import Creator
 from .workitem import Workitem
 
 if TYPE_CHECKING:
-    from .polarion import Polarion
+    from .client import Polarion
     from .project import Project
 
 
 class Plan(PolarionObject):
-    """
-    A polarion Plan
+    """A Polarion plan.
+
+    :param polarion: Polarion client
+    :param project: Project instance
+    :param id: Plan ID
+    :param uri: Plan URI
+    :param polarion_record: Pre-fetched plan data
+    :param new_plan_name: Name for creating a new plan
+    :param new_plan_id: ID for the new plan
+    :param new_plan_template: Template ("iteration", "release")
+    :param new_plan_parent: Parent plan
     """
 
     _default_summary_fields = ["id", "name", "startDate", "dueDate"]
 
+    # Declared attributes
+    id: str | None = None
+    name: str | None = None
+    startDate: date | datetime | None = None
+    dueDate: date | datetime | None = None
+    finishedOn: date | datetime | None = None
+    startedOn: date | datetime | None = None
+    allowedTypes: Any = None
+    records: Any = None
+    parent: Any = None
+
     def __init__(
         self,
         polarion: Polarion,
-        project: Optional[Project],
-        polarion_record: Optional[Any] = None,
-        uri: Optional[str] = None,
-        id: Optional[str] = None,
-        new_plan_name: Optional[str] = None,
-        new_plan_id: Optional[str] = None,
-        new_plan_parent: Optional[Plan] = None,
-        new_plan_template: Optional[str] = None,
+        project: Project | None,
+        polarion_record: dict[str, Any] | None = None,
+        uri: str | None = None,
+        id: str | None = None,
+        new_plan_name: str | None = None,
+        new_plan_id: str | None = None,
+        new_plan_parent: Plan | None = None,
+        new_plan_template: str | None = None,
     ) -> None:
-        """
-
-        :param polarion: Polarion client
-        :param project: Polarion project
-        :param polarion_record:
-        :param uri: uri for the Plan
-        :param id:  id for the Plan
-        :param new_plan_name: new plan name, if a new plan needs to be constructed, also supply new_plan_id and new_plan_template
-        :param new_plan_id:  new plan id
-        :param new_plan_parent: optional new plan parent
-        :param new_plan_template: plan template, defaults in polarion are iteration or release
-        """
         super().__init__(polarion, project, id, uri)
-        self._polarion_record = polarion_record
+        self._polarion_record = polarion_record or {}
+        self._original_data: dict[str, Any] = {}
 
         if new_plan_id is not None and new_plan_name is not None:
-            # get the ID from the plan if the ID if the plan is passed
-            if isinstance(new_plan_parent, Plan):
-                new_plan_parent = new_plan_parent.id
-            service = self._polarion.getService("Planning")
-            self._uri = service.createPlan(
-                self._project.id, new_plan_name, new_plan_id, new_plan_parent, new_plan_template
+            parent_id = new_plan_parent.id if isinstance(new_plan_parent, Plan) else new_plan_parent
+            self._uri = self._polarion._soap.call(
+                "Planning", "createPlan",
+                projectId=self._project.id, planName=new_plan_name,
+                planId=new_plan_id, parentPlanId=parent_id,
+                templateId=new_plan_template
             )
 
         if self._uri is not None:
-            service = self._polarion.getService("Planning")
-            self._polarion_record = service.getPlanByUri(self._uri)
+            self._polarion_record = self._polarion._soap.call(
+                "Planning", "getPlanByUri", uri=self._uri
+            )
 
-        if self._id is not None:
-            service = self._polarion.getService("Planning")
-            self._polarion_record = service.getPlanById(self._project.id, self._id)
+        if self._id is not None and self._polarion_record is None:
+            self._polarion_record = self._polarion._soap.call(
+                "Planning", "getPlanById", projectId=self._project.id, planId=self._id
+            )
 
-        self._buildPlanFromPolarion()
+        self._build_from_polarion()
 
-    def _buildPlanFromPolarion(self) -> None:
-        if self._polarion_record is not None and not self._polarion_record.unresolvable:
-            self._populate_attrs(self, self._polarion_record)
-            self._original_polarion = copy.deepcopy(self._polarion_record)
+    def _build_from_polarion(self) -> None:
+        if isinstance(self._polarion_record, dict) and not self._polarion_record.get("unresolvable"):
+            self._populate_from_dict(self, self._polarion_record)
+            self._original_data = copy.deepcopy(self._polarion_record)
+            self._uri = self._polarion_record.get("uri", self._uri)
         else:
             raise PolarionNotFoundError("Plan not retrieved from Polarion")
 
-    def setDueDate(self, date: date | datetime) -> None:
-        """
-        Set the due date for this plan
-        :param date: date object
-        :return: None
-        """
-        self.dueDate = date
+    def set_due_date(self, due_date: date | datetime) -> None:
+        """Set the due date."""
+        self.dueDate = due_date
         self.save()
 
-    def setStartDate(self, date: date | datetime) -> None:
-        """
-        Set the start date for this plan
-        :param date: date object
-        :return: None
-        """
-        self.startDate = date
+    def set_start_date(self, start_date: date | datetime) -> None:
+        """Set the start date."""
+        self.startDate = start_date
         self.save()
 
-    def setFinishedOnDate(self, date: date | datetime) -> None:
-        """
-        Set the finished date for this plan
-        :param date: date object
-        :return: None
-        """
-        self.finishedOn = date
+    def set_finished_on_date(self, finished_on: date | datetime) -> None:
+        """Set the finished date."""
+        self.finishedOn = finished_on
         self.save()
 
-    def setStartedOnDate(self, date: date | datetime) -> None:
-        """
-        Set the started on date for this plan
-        :param date: date object
-        :return: None
-        """
-        self.startedOn = date
+    def set_started_on_date(self, started_on: date | datetime) -> None:
+        """Set the started on date."""
+        self.startedOn = started_on
         self.save()
 
-    def addToPlan(self, workitem: Workitem) -> None:
-        """
-        Add a workitem to the plan
-        :param workitem: Workitem
-        :return: None
-        """
-        if any(x.id == workitem.type.id for x in self.allowedTypes.EnumOptionId):
-            service = self._polarion.getService("Planning")
-            service.addPlanItems(self.uri, [workitem.uri])
-            workitem._reloadFromPolarion()  # noqa: SLF001 - reload so the plan status is updated
-            self._reloadFromPolarion()
-        else:
-            raise PolarionFieldError(f"Workitem type {workitem.id} is not allowed in this plan")
+    def add_workitem(self, workitem: Workitem) -> None:
+        """Add a work item to this plan.
 
-    def removeFromPlan(self, workitem: Workitem) -> None:
+        :param workitem: Work item to add
+        :raises PolarionFieldError: If the work item type is not allowed
         """
-        Remove a workitem from the plan
-        :param workitem: Workitem
-        :return: None
-        """
-        service = self._polarion.getService("Planning")
-        service.removePlanItems(self.uri, [workitem.uri])
-        workitem._reloadFromPolarion()  # noqa: SLF001 - reload so the plan status is updated
-        self._reloadFromPolarion()
+        allowed = self.allowedTypes
+        if isinstance(allowed, dict):
+            enum_list = allowed.get("EnumOptionId", [])
+            if isinstance(enum_list, list):
+                wi_type = workitem.type.get("id") if isinstance(workitem.type, dict) else str(workitem.type)
+                if not any(
+                    (e.get("id") if isinstance(e, dict) else str(e)) == wi_type
+                    for e in enum_list
+                ):
+                    raise PolarionFieldError(f"Workitem type {wi_type} not allowed in this plan")
 
-    def addAllowedType(self, type: str) -> None:
-        """
-        Add an allowed workitem type to this plan
-        :param type: a string with the type name
-        :return: None
-        """
-        if not any(x.id == type for x in self.allowedTypes.EnumOptionId):
-            service = self._polarion.getService("Planning")
-            service.addPlanAllowedType(self.uri, self._polarion.EnumOptionIdType(id=type))
-            self._reloadFromPolarion()
+        self._polarion._soap.call("Planning", "addPlanItems", planURI=self.uri, itemURIs=[workitem.uri])
+        workitem._reload_from_polarion()
+        self._reload_from_polarion()
 
-    def removeAllowedType(self, type: str) -> None:
-        """
-        Remove an allowed workitem type to this plan
-        :param type: a string with the type name
-        :return: None
-        """
-        if any(x.id == type for x in self.allowedTypes.EnumOptionId):
-            service = self._polarion.getService("Planning")
-            service.removePlanAllowedType(self.uri, self._polarion.EnumOptionIdType(id=type))
-            self._reloadFromPolarion()
+    def remove_workitem(self, workitem: Workitem) -> None:
+        """Remove a work item from this plan."""
+        self._polarion._soap.call("Planning", "removePlanItems", planURI=self.uri, itemURIs=[workitem.uri])
+        workitem._reload_from_polarion()
+        self._reload_from_polarion()
 
-    def getWorkitemsInPlan(self) -> list[Workitem]:
-        """
-        Get all workitems from this plan
-        :return: Array of workitems
-        """
+    def add_allowed_type(self, type_name: str) -> None:
+        """Add an allowed work item type."""
+        self._polarion._soap.call(
+            "Planning", "addPlanAllowedType",
+            planURI=self.uri, typeId={"id": type_name}
+        )
+        self._reload_from_polarion()
+
+    def remove_allowed_type(self, type_name: str) -> None:
+        """Remove an allowed work item type."""
+        self._polarion._soap.call(
+            "Planning", "removePlanAllowedType",
+            planURI=self.uri, typeId={"id": type_name}
+        )
+        self._reload_from_polarion()
+
+    def get_workitems(self) -> list[Workitem]:
+        """Get all work items in this plan."""
         if self.records is None:
             return []
-        return [
-            Workitem(self._polarion, self._project, polarion_workitem=r.item)
-            for r in self.records.PlanRecord
-            if r.item.id is not None
-        ]
+        record_list = self.records if isinstance(self.records, list) else [self.records]
+        workitems = []
+        for r in record_list:
+            if isinstance(r, dict):
+                item = r.get("item", {})
+                if isinstance(item, dict) and item.get("id") is not None:
+                    try:
+                        workitems.append(Workitem(self._polarion, self._project, polarion_workitem=item))
+                    except Exception:
+                        pass
+        return workitems
 
-    def save(self) -> None:
-        """
-        Update the plan in polarion
-        """
-        updated_plan = self._build_update_dict(self, self._polarion_record, self._original_polarion)
-        if updated_plan:
-            updated_plan["uri"] = self.uri
-            service = self._polarion.getService("Planning")
-            service.updatePlan(updated_plan)
-            self._reloadFromPolarion()
-
-    def getParent(self) -> Plan:
-        """
-        Get the parent plan
-        :return: parent Plan
-        """
+    def get_parent(self) -> Plan:
+        """Get the parent plan."""
         return Plan(self._polarion, self._project, self.parent)
 
-    def getChildren(self) -> list[Plan]:
-        """
-        Get the child plans
-        :return: List of Plans, or empty list if there are no children.
-        """
-        return [p for p in self._project.searchPlanFullItem(f"parent.id:{self.id}") if p.id != self.id]
+    def get_children(self) -> list[Plan]:
+        """Get child plans."""
+        results = self._project.search_plans_full(f"parent.id:{self.id}")
+        return [p for p in results if p.id != self.id]
 
-    def _reloadFromPolarion(self) -> None:
-        service = self._polarion.getService("Planning")
-        self._polarion_record = service.getPlanByUri(self._polarion_record.uri)
-        self._buildPlanFromPolarion()
+    def save(self) -> None:
+        """Save plan changes to Polarion."""
+        changed: dict[str, Any] = {}
+        for key in self._polarion_record:
+            if key in ("uri", "unresolvable"):
+                continue
+            current_val = getattr(self, key, None)
+            if current_val is not None and current_val != self._original_data.get(key):
+                changed[key] = current_val
+        if changed:
+            changed["uri"] = self.uri
+            self._polarion._soap.call("Planning", "updatePlan", content=changed)
+            self._reload_from_polarion()
+
+    def _reload_from_polarion(self) -> None:
+        self._polarion_record = self._polarion._soap.call(
+            "Planning", "getPlanByUri", uri=self._polarion_record.get("uri", self._uri)
+        )
+        self._build_from_polarion()
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Plan):
@@ -212,5 +208,5 @@ class Plan(PolarionObject):
 
 
 class PlanCreator(Creator):
-    def createFromUri(self, polarion: Polarion, project: Optional[Project], uri: str) -> Plan:
-        return Plan(polarion, None, uri)
+    def create_from_uri(self, polarion: Polarion, project: Project | None, uri: str) -> Plan:
+        return Plan(polarion, None, uri=uri)

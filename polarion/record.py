@@ -1,318 +1,300 @@
+"""Polarion Test Record model."""
+
 from __future__ import annotations
 
 import os
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
-from .base.polarion_object import PolarionObject, PostponeSaveMixin
+from .base.polarion_object import BatchSaveMixin, PolarionObject
 from .exceptions import PolarionNotFoundError
-from .factory import createFromUri
+from .factory import create_from_uri
 
 if TYPE_CHECKING:
-    from .polarion import Polarion
+    from .client import Polarion
     from .testrun import Testrun
     from .user import User
 
 
-class Record(PolarionObject, PostponeSaveMixin):
-    """
-    Create a Polarion test record,
+class Record(PolarionObject, BatchSaveMixin):
+    """A test record within a test run.
 
-    :param polarion: Polarion client object
-    :param test_run: Test run instance
-    :param polarion_record: The data from Polarion of this testrun
-    :param index: The index of this record in the test run
-
+    :param polarion: Polarion client
+    :param test_run: Parent test run
+    :param polarion_record: Record data dict
+    :param index: Index in the test run
     """
 
     _default_summary_fields = ["testcase_id", "result", "executed"]
     _field_accessors = {
         "testcase_id": lambda self: self.testcase_id,
-        "result": lambda self: self.getResult(),
+        "result": lambda self: self.get_result(),
     }
 
     class ResultType(Enum):
-        """
-        Record result enum
-        """
-
         No = None
         PASSED = "passed"
         FAILED = "failed"
         BLOCKED = "blocked"
         NOTTESTED = "not_tested"
 
-    def __init__(self, polarion: Polarion, test_run: Testrun, polarion_record: Any, index: int) -> None:
+    # Declared attributes
+    result: Any = None
+    comment: Any = None
+    executed: Any = None
+    executedByURI: str | None = None
+    duration: str | None = None
+    testCaseURI: str | None = None
+    testStepResults: Any = None
+    attachments: Any = None
+
+    def __init__(
+        self,
+        polarion: Polarion,
+        test_run: Testrun,
+        polarion_record: dict[str, Any],
+        index: int,
+    ) -> None:
         super().__init__(polarion, None, None, None)
         self._test_run = test_run
         self._polarion_record = polarion_record
         self._index = index
 
-        self._buildWorkitemFromPolarion()
+        self._build_from_polarion()
 
-    def _buildWorkitemFromPolarion(self) -> None:
-        self._populate_attrs(self, self._polarion_record)
+    def _build_from_polarion(self) -> None:
+        self._populate_from_dict(self, self._polarion_record)
 
-        self._testcase = self._polarion_record.testCaseURI
-        self._testcase_name = self._testcase.split("}")[1]
-        self._defect = self._polarion_record.defectURI
+        self._testcase = self._polarion_record.get("testCaseURI", "")
+        self._testcase_name = self._testcase.split("}")[-1] if "}" in self._testcase else self._testcase
+        self._defect = self._polarion_record.get("defectURI")
 
-    def _reloadFromPolarion(self) -> None:
-        service = self._polarion.getService("TestManagement")
-        self._polarion_record = service.getTestCaseRecords(self._test_run.uri, self._testcase)[0]
-        self._buildWorkitemFromPolarion()
-        # self._original_polarion_test_run = copy.deepcopy(self._polarion_test_run)
+    def _reload_from_polarion(self) -> None:
+        result = self._polarion._soap.call(
+            "TestManagement", "getTestCaseRecords",
+            testRunURI=self._test_run.uri, testCaseURI=self._testcase
+        )
+        if isinstance(result, list) and result:
+            self._polarion_record = result[0]
+        elif isinstance(result, dict):
+            self._polarion_record = result
+        self._build_from_polarion()
 
-    def setTestStepResult(self, step_number: int, result: ResultType, comment: Optional[str] = None) -> None:
-        """ "
-        Set the result of a test step
+    # --- Results ---
 
-        :param step_number: Step number
-        :param result: The result fo the test step
-        :param comment: An optional comment
+    def set_test_step_result(
+        self,
+        step_number: int,
+        result: ResultType,
+        comment: str | None = None,
+    ) -> None:
+        """Set the result of a test step.
+
+        :param step_number: Step index
+        :param result: Result value
+        :param comment: Optional comment
         """
         if self.testStepResults is None:
-            # get the number of test steps in
-            service = self._polarion.getService("TestManagement")
-            test_steps = service.getTestSteps(self.testCaseURI)
-            number_of_steps = 0
-            if test_steps.steps is not None:
-                number_of_steps = len(test_steps.steps.TestStep)
-            self.testStepResults = self._polarion.ArrayOfTestStepResultType()
-            for _i in range(number_of_steps):
-                self.testStepResults.TestStepResult.append(self._polarion.TestStepResultType())
+            test_steps = self._polarion._soap.call(
+                "TestManagement", "getTestSteps", workitemURI=self.testCaseURI
+            )
+            num_steps = 0
+            if isinstance(test_steps, dict):
+                steps = test_steps.get("steps", [])
+                if isinstance(steps, list):
+                    num_steps = len(steps)
+            self.testStepResults = [{"result": None, "comment": None} for _ in range(num_steps)]
 
-        if step_number < len(self.testStepResults.TestStepResult):
-            self.testStepResults.TestStepResult[step_number].result = self._polarion.EnumOptionIdType(id=result.value)
-            if comment is not None:
-                self.testStepResults.TestStepResult[step_number].comment = self._polarion.TextType(
-                    content=comment, type="text/html", contentLossy=False
-                )
+        if not isinstance(self.testStepResults, list):
+            self.testStepResults = [self.testStepResults]
+
+        if step_number < len(self.testStepResults):
+            step_result = self.testStepResults[step_number]
+            if isinstance(step_result, dict):
+                step_result["result"] = {"id": result.value}
+                if comment is not None:
+                    step_result["comment"] = {
+                        "content": comment, "type": "text/html", "contentLossy": False
+                    }
+            else:
+                self.testStepResults[step_number] = {
+                    "result": {"id": result.value},
+                    "comment": {"content": comment, "type": "text/html", "contentLossy": False} if comment else None,
+                }
 
         self.save()
 
-    def getResult(self) -> ResultType:
-        """
-        Get the test result of this record
-
-        :return: The test case result
-        :rtype: ResultType
-        """
+    def get_result(self) -> ResultType:
+        """Get the test result."""
         if self.result is not None:
-            return self.ResultType(self.result.id)
+            result_id = self.result.get("id") if isinstance(self.result, dict) else self.result
+            if result_id:
+                return self.ResultType(result_id)
         return self.ResultType.No
 
-    def getComment(self) -> Optional[str]:
-        """
-        Get a comment if available. The comment may contain HTML if edited in Polarion!
-
-        :return: Get the comment, may contain HTML
-        :rtype: string
-        """
+    def get_comment(self) -> str | None:
+        """Get the comment (may contain HTML)."""
         if self.comment is not None:
-            return self.comment.content
+            if isinstance(self.comment, dict):
+                return self.comment.get("content")
+            return str(self.comment)
         return None
 
     @property
-    def testcase_id(self):
-        """
-        The test case name including prefix
-        """
+    def testcase_id(self) -> str:
+        """The test case ID including prefix."""
         return self._testcase_name
 
-    def getTestCaseName(self) -> str:
-        """
-        Get the test case name including prefix
-
-        :return: The name
-        :rtype: string
-        """
+    def get_test_case_name(self) -> str:
+        """Get the test case name including prefix."""
         return self._testcase_name
 
-    def setComment(self, comment: str) -> None:
-        """
-        Set the comment for this record.
+    def set_comment(self, comment: str) -> None:
+        """Set the comment for this record."""
+        self.comment = {"content": comment, "type": "text/html", "contentLossy": False}
 
-        :param comment: Comment string, may contain HTML
-        """
-        self.comment = self._polarion.TextType(content=comment, type="text/html", contentLossy=False)
+    def set_result(
+        self,
+        result: ResultType = ResultType.FAILED,
+        comment: str | None = None,
+    ) -> None:
+        """Set the result and save.
 
-    def setResult(self, result: ResultType = ResultType.FAILED, comment: Optional[str] = None) -> None:
-        """
-        Set the result of this record and save it.
-
-        :param result: The result of this record
-        :param comment: Comment string, may contain HTML
+        :param result: Test result
+        :param comment: Optional comment
         """
         if comment is not None:
-            self.setComment(comment)
-        if self.result is not None:
-            self.result.id = result.value
+            self.set_comment(comment)
+        if isinstance(self.result, dict):
+            self.result["id"] = result.value
         else:
-            self.result = self._polarion.EnumOptionIdType(id=result.value)
+            self.result = {"id": result.value}
         self.save()
 
-    def getExecutingUser(self) -> Optional[User]:
-        """
-        Gets the executing user if the test was executed
+    # --- User ---
 
-        :return: The user
-        :rtype: User/None
-        """
+    def get_executing_user(self) -> User | None:
+        """Get the user who executed this test."""
         if self.executedByURI is not None:
-            return createFromUri(self._polarion, None, self.executedByURI)
+            return create_from_uri(self._polarion, None, self.executedByURI)
         return None
 
-    def hasAttachment(self) -> bool:
-        """
-        Checks if the Record has attachments
+    # --- Attachments ---
 
-        :return: True/False
-        :rtype: boolean
-        """
+    def has_attachment(self) -> bool:
+        """Check if this record has attachments."""
         return self.attachments is not None
 
-    def getAttachment(self, file_name: str) -> bytes:
-        """
-        Get the attachment data
+    def get_attachment(self, file_name: str) -> bytes:
+        """Get attachment data by file name."""
+        if self.attachments is not None:
+            att_list = self.attachments if isinstance(self.attachments, list) else [self.attachments]
+            for att in att_list:
+                if isinstance(att, dict) and att.get("fileName") == file_name:
+                    url = att.get("url")
+                    if url:
+                        return self._polarion.download_from_svn(url)
+        raise PolarionNotFoundError(f"Could not find attachment {file_name}")
 
-        :param file_name: The attachment file name
-        :return: list of bytes
-        :rtype: bytes[]
-        """
-        # find the file
-        url = None
-        for attachment in self.attachments.TestRunAttachment:
-            if attachment.fileName == file_name:
-                url = attachment.url
+    def save_attachment_as_file(self, file_name: str, file_path: str) -> None:
+        """Save an attachment to a file."""
+        data = self.get_attachment(file_name)
+        with open(file_path, "wb") as f:
+            f.write(data)
 
-        if url is not None:
-            return self._polarion.downloadFromSvn(url)
-        else:
-            raise PolarionNotFoundError(f"Could not find attachment with name {file_name}")
+    def delete_attachment(self, file_name: str) -> None:
+        """Delete an attachment."""
+        self._polarion._soap.call(
+            "TestManagement", "deleteAttachmentFromTestRecord",
+            testRunURI=self._test_run.uri, index=self._index, fileName=file_name
+        )
+        self._reload_from_polarion()
 
-    def saveAttachmentAsFile(self, file_name: str, file_path: str) -> None:
-        """
-        Save an attachment to file.
-
-        :param file_name: The attachment file name
-        :param file_path: File where to save the attachment
-        """
-        bin = self.getAttachment(file_name)
-        with open(file_path, "wb") as file:
-            file.write(bin)
-
-    def deleteAttachment(self, file_name: str) -> None:
-        """
-        Delete an attachment.
-
-        :param file_name: The attachment file name
-        """
-        service = self._polarion.getService("TestManagement")
-        service.deleteAttachmentFromTestRecord(self._test_run.uri, self._index, file_name)
-        self._reloadFromPolarion()
-
-    def addAttachment(self, file_path: str, title: str) -> None:
-        """
-        Upload an attachment
-
-        :param file_path: Source file to upload
-        :param title: The title of the attachment
-        """
-        service = self._polarion.getService("TestManagement")
+    def add_attachment(self, file_path: str, title: str) -> None:
+        """Upload an attachment."""
         file_name = os.path.basename(file_path)
-        with open(file_path, "rb") as file_content:
-            service.addAttachmentToTestRecord(self._test_run.uri, self._index, file_name, title, file_content.read())
-        self._reloadFromPolarion()
+        with open(file_path, "rb") as f:
+            self._polarion._soap.call(
+                "TestManagement", "addAttachmentToTestRecord",
+                testRunURI=self._test_run.uri, index=self._index,
+                fileName=file_name, title=title, content=f.read()
+            )
+        self._reload_from_polarion()
 
-    def testStepHasAttachment(self, step_index: int) -> bool:
-        """
-        Checks if the a test step has attachments
+    # --- Test Step Attachments ---
 
-        :param step_index: The test step index
-        :return: True/False
-        :rtype: boolean
-        """
+    def test_step_has_attachment(self, step_index: int) -> bool:
+        """Check if a test step has attachments."""
         if self.testStepResults is None:
             return False
-        return self.testStepResults.TestStepResult[step_index].attachments is not None
+        results = self.testStepResults if isinstance(self.testStepResults, list) else [self.testStepResults]
+        if step_index < len(results):
+            step = results[step_index]
+            if isinstance(step, dict):
+                return step.get("attachments") is not None
+        return False
 
-    def getAttachmentFromTestStep(self, step_index: int, file_name: str) -> bytes:
-        """
-        Get the attachment data from a test step
+    def get_attachment_from_test_step(self, step_index: int, file_name: str) -> bytes:
+        """Get attachment data from a test step."""
+        if self.testStepResults is not None:
+            results = self.testStepResults if isinstance(self.testStepResults, list) else [self.testStepResults]
+            if step_index < len(results):
+                step = results[step_index]
+                if isinstance(step, dict):
+                    atts = step.get("attachments", [])
+                    att_list = atts if isinstance(atts, list) else [atts]
+                    for att in att_list:
+                        if isinstance(att, dict) and att.get("fileName") == file_name:
+                            url = att.get("url")
+                            if url:
+                                return self._polarion.download_from_svn(url)
+        raise PolarionNotFoundError(f"Could not find attachment {file_name}")
 
-        :param step_index: The test step index
-        :param file_name: The attachment file name
-        :return: list of bytes
-        :rtype: bytes[]
-        """
-        # find the file
-        url = None
-        for attachment in self.testStepResults.TestStepResult[step_index].attachments.TestRunAttachment:
-            if attachment.fileName == file_name:
-                url = attachment.url
+    def save_attachment_from_test_step_as_file(self, step_index: int, file_name: str, file_path: str) -> None:
+        """Save a test step attachment to a file."""
+        data = self.get_attachment_from_test_step(step_index, file_name)
+        with open(file_path, "wb") as f:
+            f.write(data)
 
-        if url is not None:
-            return self._polarion.downloadFromSvn(url)
-        else:
-            raise PolarionNotFoundError(f"Could not find attachment with name {file_name}")
+    def delete_attachment_from_test_step(self, step_index: int, file_name: str) -> None:
+        """Delete an attachment from a test step."""
+        self._polarion._soap.call(
+            "TestManagement", "deleteAttachmentFromTestStep",
+            testRunURI=self._test_run.uri, recordIndex=self._index,
+            stepIndex=step_index, fileName=file_name
+        )
+        self._reload_from_polarion()
 
-    def saveAttachmentFromTestStepAsFile(self, step_index: int, file_name: str, file_path: str) -> None:
-        """
-        Save an attachment to file from a test step
-
-        :param step_index: The test step index
-        :param file_name: The attachment file name
-        :param file_path: File where to save the attachment
-        """
-        bin = self.getAttachmentFromTestStep(step_index, file_name)
-        with open(file_path, "wb") as file:
-            file.write(bin)
-
-    def deleteAttachmentFromTestStep(self, step_index: int, file_name: str) -> None:
-        """
-        Delete an attachment from a test step
-
-        :param step_index: The test step index
-        :param file_name: The attachment file name
-        """
-        service = self._polarion.getService("TestManagement")
-        service.deleteAttachmentFromTestStep(self._test_run.uri, self._index, step_index, file_name)
-        self._reloadFromPolarion()
-
-    def addAttachmentToTestStep(self, step_index: int, file_path: str, title: str) -> None:
-        """
-        Upload an attachment to a test step
-
-        :param step_index: The test step index
-        :param file_path: Source file to upload
-        :param title: The title of the attachment
-        """
-        service = self._polarion.getService("TestManagement")
+    def add_attachment_to_test_step(self, step_index: int, file_path: str, title: str) -> None:
+        """Upload an attachment to a test step."""
         file_name = os.path.basename(file_path)
-        with open(file_path, "rb") as file_content:
-            service.addAttachmentToTestStep(
-                self._test_run.uri, self._index, step_index, file_name, title, file_content.read()
+        with open(file_path, "rb") as f:
+            self._polarion._soap.call(
+                "TestManagement", "addAttachmentToTestStep",
+                testRunURI=self._test_run.uri, recordIndex=self._index,
+                stepIndex=step_index, fileName=file_name, title=title, content=f.read()
             )
-        self._reloadFromPolarion()
+        self._reload_from_polarion()
+
+    # --- Save ---
 
     def save(self) -> None:
-        """
-        Saves the current test record
-        """
-        if self._postpone_save:
+        """Save the test record."""
+        if self._batch_save:
             return
 
-        new_item = {}
+        new_item: dict[str, Any] = {}
         for attr, value in self.__dict__.items():
             if not attr.startswith("_"):
-                # only add if public value
                 new_item[attr] = value
-        service = self._polarion.getService("TestManagement")
-        service.executeTest(self._test_run.uri, new_item)
-        self._reloadFromPolarion()
+
+        self._polarion._soap.call(
+            "TestManagement", "executeTest",
+            testRunURI=self._test_run.uri, record=new_item
+        )
+        self._reload_from_polarion()
 
     def __repr__(self) -> str:
-        return f"{self._testcase_name} in {self._test_run.id} ({self.getResult()} on {self.executed})"
+        return f"{self._testcase_name} in {self._test_run.id} ({self.get_result()} on {self.executed})"
 
     __str__ = __repr__

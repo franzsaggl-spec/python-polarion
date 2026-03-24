@@ -1,14 +1,12 @@
-"""Tests for Testrun with mocked SOAP layer."""
+"""Tests for Testrun with mocked SOAP layer (v2.0.0 API)."""
 
+import copy
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from polarion.exceptions import PolarionFieldError, PolarionNotFoundError
 from polarion.testrun import Testrun
-
-# Local import of the shared zeep mock helper from conftest
-from tests.unit.conftest import _zeep_object
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -17,70 +15,51 @@ from tests.unit.conftest import _zeep_object
 
 @pytest.fixture()
 def mock_testrun_data():
-    """A sample testrun zeep-style object as returned by the TestManagement service."""
-    test_record = _zeep_object(
-        {
-            "testCaseURI": "subterra:data-service:objects:/default/test_project${WorkItem}TC-001",
-            "defectURI": None,
-            "result": None,
-            "comment": None,
-            "executed": None,
-            "executedByURI": None,
-            "duration": None,
-            "testStepResults": None,
-            "attachments": None,
-        }
-    )
+    """A sample testrun dict as returned by the TestManagement service in v2.0.0."""
+    test_record = {
+        "testCaseURI": "subterra:data-service:objects:/default/test_project${WorkItem}TC-001",
+        "defectURI": None,
+        "result": None,
+        "comment": None,
+        "executed": None,
+        "executedByURI": None,
+        "duration": None,
+        "testStepResults": None,
+        "attachments": None,
+    }
 
-    records_array = MagicMock()
-    records_array.TestRecord = [test_record]
-
-    return _zeep_object(
-        {
-            "id": "TR-001",
-            "title": "Test Run 1",
-            "uri": "subterra:data-service:objects:/default/test_project${TestRun}TR-001",
-            "created": "2024-01-01",
-            "updated": "2024-01-02",
-            "records": records_array,
-            "attachments": None,
-            "customFields": None,
-            "projectURI": None,
-            "type": None,
-            "status": None,
-            "finishedOn": None,
-            "isTemplate": False,
-            "document": None,
-            "comments": None,
-            "author": None,
-            "idPrefix": None,
-            "groupId": None,
-            "homePageContent": None,
-            "keepInHistory": None,
-            "selectTestCasesBy": None,
-            "templateURI": None,
-            "query": None,
-            "useReportFromTemplate": None,
-        }
-    )
+    return {
+        "id": "TR-001",
+        "title": "Test Run 1",
+        "uri": "subterra:data-service:objects:/default/test_project${TestRun}TR-001",
+        "created": "2024-01-01",
+        "updated": "2024-01-02",
+        "records": [test_record],
+        "attachments": None,
+        "customFields": None,
+        "projectURI": None,
+        "type": None,
+        "status": None,
+        "finishedOn": None,
+        "isTemplate": False,
+        "document": None,
+        "comments": None,
+        "author": None,
+        "idPrefix": None,
+        "groupId": None,
+        "homePageContent": None,
+        "keepInHistory": None,
+        "selectTestCasesBy": None,
+        "templateURI": None,
+        "query": None,
+        "useReportFromTemplate": None,
+    }
 
 
 def _make_testrun(mock_polarion, mock_testrun_data):
     """Build a Testrun from mocked data without hitting SOAP."""
-    test_mgmt_service = MagicMock()
-    test_mgmt_service.getTestRunByUri.return_value = mock_testrun_data
-
-    original_get_service = mock_polarion.getService
-
-    def _get_service(name):
-        if name == "TestManagement":
-            return test_mgmt_service
-        return original_get_service(name)
-
-    with patch.object(mock_polarion, "getService", side_effect=_get_service):
-        tr = Testrun(mock_polarion, polarion_test_run=mock_testrun_data)
-
-    mock_polarion.getService = MagicMock(side_effect=_get_service)
+    data = copy.deepcopy(mock_testrun_data)
+    tr = Testrun(mock_polarion, polarion_test_run=data)
     return tr
 
 
@@ -96,19 +75,17 @@ def test_testrun_creation_from_data(mock_polarion, mock_testrun_data):
 
 
 def test_testrun_creation_from_uri(mock_polarion, mock_testrun_data):
-    test_mgmt_service = MagicMock()
-    test_mgmt_service.getTestRunByUri.return_value = mock_testrun_data
+    data = copy.deepcopy(mock_testrun_data)
 
-    def _get_service(name):
-        if name == "TestManagement":
-            return test_mgmt_service
-        return MagicMock()
+    mock_polarion._soap.call.side_effect = None
+    mock_polarion._soap.call.return_value = data
 
-    with patch.object(mock_polarion, "getService", side_effect=_get_service):
-        tr = Testrun(mock_polarion, uri=mock_testrun_data.uri)
+    tr = Testrun(mock_polarion, uri=data["uri"])
 
     assert tr.id == "TR-001"
-    test_mgmt_service.getTestRunByUri.assert_called_once_with(mock_testrun_data.uri)
+    mock_polarion._soap.call.assert_called_once_with(
+        "TestManagement", "getTestRunByUri", uri=data["uri"]
+    )
 
 
 def test_testrun_neither_uri_nor_data_raises_field_error(mock_polarion):
@@ -117,79 +94,72 @@ def test_testrun_neither_uri_nor_data_raises_field_error(mock_polarion):
 
 
 def test_testrun_unresolvable_raises(mock_polarion):
-    bad_data = _zeep_object({"id": "TR-BAD"}, unresolvable=True)
+    bad_data = {"id": "TR-BAD", "unresolvable": True}
     with pytest.raises(PolarionNotFoundError):
         Testrun(mock_polarion, polarion_test_run=bad_data)
 
 
 def test_testrun_uri_not_found_raises(mock_polarion):
-    test_mgmt_service = MagicMock()
-    test_mgmt_service.getTestRunByUri.side_effect = Exception("Not found")
+    mock_polarion._soap.call.side_effect = Exception("Not found")
 
-    def _get_service(name):
-        if name == "TestManagement":
-            return test_mgmt_service
-        return MagicMock()
-
-    with patch.object(mock_polarion, "getService", side_effect=_get_service):
-        with pytest.raises(PolarionNotFoundError):
-            Testrun(mock_polarion, uri="subterra:bad-uri")
+    with pytest.raises(PolarionNotFoundError):
+        Testrun(mock_polarion, uri="subterra:bad-uri")
 
 
 # ---------------------------------------------------------------------------
-# hasTestCase / getTestCase
+# has_test_case / get_test_case
 # ---------------------------------------------------------------------------
 
 
 def test_has_test_case_true(mock_polarion, mock_testrun_data):
     tr = _make_testrun(mock_polarion, mock_testrun_data)
-    assert tr.hasTestCase("TC-001") is True
+    assert tr.has_test_case("TC-001") is True
 
 
 def test_has_test_case_false(mock_polarion, mock_testrun_data):
     tr = _make_testrun(mock_polarion, mock_testrun_data)
-    assert tr.hasTestCase("TC-NONEXISTENT") is False
+    assert tr.has_test_case("TC-NONEXISTENT") is False
 
 
 def test_get_test_case_returns_record(mock_polarion, mock_testrun_data):
     tr = _make_testrun(mock_polarion, mock_testrun_data)
-    record = tr.getTestCase("TC-001")
+    record = tr.get_test_case("TC-001")
     assert record is not None
     assert record.testcase_id == "TC-001"
 
 
 def test_get_test_case_returns_none_when_missing(mock_polarion, mock_testrun_data):
     tr = _make_testrun(mock_polarion, mock_testrun_data)
-    record = tr.getTestCase("TC-NONEXISTENT")
+    record = tr.get_test_case("TC-NONEXISTENT")
     assert record is None
 
 
 # ---------------------------------------------------------------------------
-# hasAttachment
+# has_attachment
 # ---------------------------------------------------------------------------
 
 
 def test_has_attachment_false(mock_polarion, mock_testrun_data):
     tr = _make_testrun(mock_polarion, mock_testrun_data)
     tr.attachments = None
-    assert tr.hasAttachment() is False
+    assert tr.has_attachment() is False
 
 
 def test_has_attachment_true(mock_polarion, mock_testrun_data):
     tr = _make_testrun(mock_polarion, mock_testrun_data)
-    tr.attachments = MagicMock()
-    assert tr.hasAttachment() is True
+    tr.attachments = [{"id": "att1"}]
+    assert tr.has_attachment() is True
 
 
 # ---------------------------------------------------------------------------
-# isCustomFieldAllowed
+# is_custom_field_allowed
 # ---------------------------------------------------------------------------
 
 
 def test_is_custom_field_allowed_always_true(mock_polarion, mock_testrun_data):
     tr = _make_testrun(mock_polarion, mock_testrun_data)
-    assert tr.isCustomFieldAllowed("any_field") is True
-    assert tr.isCustomFieldAllowed("another_field") is True
+    assert tr.is_custom_field_allowed("any_field") is True
+    assert tr.is_custom_field_allowed("another_field") is True
 
 
 # ---------------------------------------------------------------------------

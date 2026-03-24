@@ -1,14 +1,12 @@
-"""Tests for Document with mocked SOAP layer."""
+"""Tests for Document with mocked SOAP layer (v2.0.0 API)."""
 
+import copy
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from polarion.document import Document
 from polarion.exceptions import PolarionNotFoundError
-
-# Local import of the shared zeep mock helper from conftest
-from tests.unit.conftest import _zeep_object
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -17,51 +15,44 @@ from tests.unit.conftest import _zeep_object
 
 @pytest.fixture()
 def mock_document_data():
-    """A sample document zeep-style object as returned by the Tracker service."""
-    return _zeep_object(
-        {
-            "title": "Test Document",
-            "uri": "subterra:data-service:objects:/default/test_project${Module}TestDoc",
-            "moduleFolder": "/TestFolder",
-            "moduleLocation": "/TestFolder/TestDoc",
-            "moduleName": "TestDoc",
-            "type": "genericModule",
-            "status": None,
-            "structureLinkRole": MagicMock(id="parent"),
-            "customFields": None,
-            "homePageContent": None,
-            "updateDate": None,
-            "updatedBy": None,
-            "branched": False,
-            "headingSidebarFields": None,
-            "outlineNumbering": None,
-            "usesOutlineNumbering": True,
-            "allowedWITypes": None,
-            "comments": None,
-            "derivedFrom": None,
-            "derivedFromURI": None,
-            "derivedFromRevision": None,
-        }
-    )
+    """A sample document dict as returned by the Tracker service in v2.0.0."""
+    return {
+        "title": "Test Document",
+        "uri": "subterra:data-service:objects:/default/test_project${Module}TestDoc",
+        "moduleFolder": "/TestFolder",
+        "moduleLocation": "/TestFolder/TestDoc",
+        "moduleName": "TestDoc",
+        "type": "genericModule",
+        "status": None,
+        "structureLinkRole": {"id": "parent"},
+        "customFields": None,
+        "homePageContent": None,
+        "updateDate": None,
+        "updatedBy": None,
+        "branched": False,
+        "headingSidebarFields": None,
+        "outlineNumbering": None,
+        "usesOutlineNumbering": True,
+        "allowedWITypes": None,
+        "comments": None,
+        "derivedFrom": None,
+        "derivedFromURI": None,
+        "derivedFromRevision": None,
+    }
 
 
 def _make_document(mock_polarion, mock_project, mock_document_data):
     """Build a Document from mocked data without hitting SOAP."""
-    tracker_service = MagicMock()
-    tracker_service.getModuleByUri.return_value = mock_document_data
+    data = copy.deepcopy(mock_document_data)
 
-    original_get_service = mock_polarion.getService
+    def _soap_call(service, method, **kwargs):
+        if service == "Tracker" and method == "getModuleByUri":
+            return data
+        return None
 
-    def _get_service(name):
-        if name == "Tracker":
-            return tracker_service
-        return original_get_service(name)
+    mock_polarion._soap.call.side_effect = _soap_call
+    doc = Document(mock_polarion, mock_project, uri=data["uri"])
 
-    with patch.object(mock_polarion, "getService", side_effect=_get_service):
-        doc = Document(mock_polarion, mock_project, uri=mock_document_data.uri)
-
-    mock_polarion.getService = MagicMock(side_effect=_get_service)
-    doc._tracker_service = tracker_service
     return doc
 
 
@@ -77,18 +68,13 @@ def test_document_creation_from_uri(mock_polarion, mock_project, mock_document_d
 
 
 def test_document_creation_from_uri_unresolvable_raises(mock_polarion, mock_project):
-    bad_data = _zeep_object({"uri": "bad-uri"}, unresolvable=True)
-    tracker_service = MagicMock()
-    tracker_service.getModuleByUri.return_value = bad_data
+    bad_data = {"uri": "bad-uri", "unresolvable": True}
 
-    def _get_service(name):
-        if name == "Tracker":
-            return tracker_service
-        return MagicMock()
+    mock_polarion._soap.call.side_effect = None
+    mock_polarion._soap.call.return_value = bad_data
 
-    with patch.object(mock_polarion, "getService", side_effect=_get_service):
-        with pytest.raises(PolarionNotFoundError):
-            Document(mock_polarion, mock_project, uri="bad-uri")
+    with pytest.raises(PolarionNotFoundError):
+        Document(mock_polarion, mock_project, uri="bad-uri")
 
 
 # ---------------------------------------------------------------------------
@@ -97,49 +83,46 @@ def test_document_creation_from_uri_unresolvable_raises(mock_polarion, mock_proj
 
 
 def test_document_creation_from_location(mock_polarion, mock_project, mock_document_data):
-    tracker_service = MagicMock()
-    tracker_service.getModuleByLocation.return_value = mock_document_data
+    data = copy.deepcopy(mock_document_data)
 
-    def _get_service(name):
-        if name == "Tracker":
-            return tracker_service
-        return MagicMock()
+    def _soap_call(service, method, **kwargs):
+        if service == "Tracker" and method == "getModuleByLocation":
+            return data
+        return None
 
-    with patch.object(mock_polarion, "getService", side_effect=_get_service):
-        doc = Document(mock_polarion, mock_project, location="/TestFolder/TestDoc")
+    mock_polarion._soap.call.side_effect = _soap_call
+    doc = Document(mock_polarion, mock_project, location="/TestFolder/TestDoc")
 
     assert doc.title == "Test Document"
-    tracker_service.getModuleByLocation.assert_called_once_with(mock_project.id, "/TestFolder/TestDoc")
+    mock_polarion._soap.call.assert_called_with(
+        "Tracker", "getModuleByLocation",
+        projectId=mock_project.id, locationPath="/TestFolder/TestDoc",
+    )
 
 
 def test_document_creation_from_location_unresolvable_raises(mock_polarion, mock_project):
-    bad_data = _zeep_object({"uri": "bad-uri"}, unresolvable=True)
-    tracker_service = MagicMock()
-    tracker_service.getModuleByLocation.return_value = bad_data
+    bad_data = {"uri": "bad-uri", "unresolvable": True}
 
-    def _get_service(name):
-        if name == "Tracker":
-            return tracker_service
-        return MagicMock()
+    mock_polarion._soap.call.side_effect = None
+    mock_polarion._soap.call.return_value = bad_data
 
-    with patch.object(mock_polarion, "getService", side_effect=_get_service):
-        with pytest.raises(PolarionNotFoundError):
-            Document(mock_polarion, mock_project, location="/bad/location")
+    with pytest.raises(PolarionNotFoundError):
+        Document(mock_polarion, mock_project, location="/bad/location")
 
 
 # ---------------------------------------------------------------------------
-# isCustomFieldAllowed
+# is_custom_field_allowed
 # ---------------------------------------------------------------------------
 
 
 def test_is_custom_field_allowed_always_true(mock_polarion, mock_project, mock_document_data):
     doc = _make_document(mock_polarion, mock_project, mock_document_data)
-    assert doc.isCustomFieldAllowed("any_key") is True
-    assert doc.isCustomFieldAllowed("another_key") is True
+    assert doc.is_custom_field_allowed("any_key") is True
+    assert doc.is_custom_field_allowed("another_key") is True
 
 
 # ---------------------------------------------------------------------------
-# getWorkitemUris
+# get_workitem_uris
 # ---------------------------------------------------------------------------
 
 
@@ -147,25 +130,30 @@ def test_get_workitem_uris(mock_polarion, mock_project, mock_document_data):
     doc = _make_document(mock_polarion, mock_project, mock_document_data)
 
     expected_uris = ["uri1", "uri2", "uri3"]
-    tracker_service = MagicMock()
-    tracker_service.getModuleWorkItemUris.return_value = expected_uris
 
-    mock_polarion.getService = MagicMock(return_value=tracker_service)
+    def _soap_call(service, method, **kwargs):
+        if service == "Tracker" and method == "getModuleWorkItemUris":
+            return expected_uris
+        return None
 
-    result = doc.getWorkitemUris()
+    mock_polarion._soap.call.reset_mock()
+    mock_polarion._soap.call.side_effect = _soap_call
+
+    result = doc.get_workitem_uris()
     assert result == expected_uris
-    tracker_service.getModuleWorkItemUris.assert_called_once_with(doc._uri, None, True)
+    mock_polarion._soap.call.assert_called_once_with(
+        "Tracker", "getModuleWorkItemUris",
+        moduleURI=doc._uri, baselineRevision=None, deep=True,
+    )
 
 
 def test_get_workitem_uris_empty(mock_polarion, mock_project, mock_document_data):
     doc = _make_document(mock_polarion, mock_project, mock_document_data)
 
-    tracker_service = MagicMock()
-    tracker_service.getModuleWorkItemUris.return_value = []
+    mock_polarion._soap.call.side_effect = None
+    mock_polarion._soap.call.return_value = []
 
-    mock_polarion.getService = MagicMock(return_value=tracker_service)
-
-    result = doc.getWorkitemUris()
+    result = doc.get_workitem_uris()
     assert result == []
 
 
