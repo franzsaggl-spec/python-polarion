@@ -91,3 +91,47 @@ def test_auth_failure_raises_auth_error(monkeypatch):
     t = SoapTransport(url="https://x/polarion", username="u", password="bad")
     with pytest.raises(AuthError):
         t.call("Tracker", "ping")
+
+
+def test_call_retries_on_connection_error(monkeypatch):
+    class FlakyService(DummyService):
+        def __init__(self):
+            super().__init__()
+            self.count = 0
+
+        def ping(self, **kwargs):
+            self.count += 1
+            if self.count < 3:
+                raise requests.ConnectionError("temporary")
+            return {"ok": True}
+
+    services = {}
+
+    def fake_client(wsdl, transport):
+        svc = FlakyService() if wsdl.endswith("/Tracker?wsdl") else DummyService()
+        services[wsdl] = svc
+        return SimpleNamespace(service=svc)
+
+    monkeypatch.setattr("polarion.v3.transport.soap.Client", fake_client)
+    monkeypatch.setattr("polarion.v3.transport.soap.time.sleep", lambda *_: None)
+
+    t = SoapTransport(url="https://x/polarion", username="u")
+    out = t.call("Tracker", "ping")
+    assert out["ok"] is True
+
+
+def test_call_fails_after_retries(monkeypatch):
+    class AlwaysFailService(DummyService):
+        def ping(self, **kwargs):
+            raise requests.Timeout("timeout")
+
+    def fake_client(wsdl, transport):
+        svc = AlwaysFailService() if wsdl.endswith("/Tracker?wsdl") else DummyService()
+        return SimpleNamespace(service=svc)
+
+    monkeypatch.setattr("polarion.v3.transport.soap.Client", fake_client)
+    monkeypatch.setattr("polarion.v3.transport.soap.time.sleep", lambda *_: None)
+
+    t = SoapTransport(url="https://x/polarion", username="u", max_retries=1)
+    with pytest.raises(TransportError):
+        t.call("Tracker", "ping")
