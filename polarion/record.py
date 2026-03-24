@@ -32,6 +32,11 @@ class Record(PolarionObject, BatchSaveMixin):
     }
 
     class ResultType(Enum):
+        """Test execution result types.
+
+        No: No result has been recorded yet (value is None).
+        """
+
         No = None
         PASSED = "passed"
         FAILED = "failed"
@@ -117,8 +122,6 @@ class Record(PolarionObject, BatchSaveMixin):
                     "comment": {"content": comment, "type": "text/html", "contentLossy": False} if comment else None,
                 }
 
-        self.save()
-
     def get_result(self) -> ResultType:
         """Get the test result."""
         if self.result is not None:
@@ -164,7 +167,6 @@ class Record(PolarionObject, BatchSaveMixin):
             self.result["id"] = result.value
         else:
             self.result = {"id": result.value}
-        self.save()
 
     # --- User ---
 
@@ -293,10 +295,21 @@ class Record(PolarionObject, BatchSaveMixin):
         if self._batch_save:
             return
 
+        _RECORD_FIELDS = (
+            "result",
+            "comment",
+            "executed",
+            "executedByURI",
+            "duration",
+            "testCaseURI",
+            "testStepResults",
+            "attachments",
+        )
         new_item: dict[str, Any] = {}
-        for attr, value in self.__dict__.items():
-            if not attr.startswith("_"):
-                new_item[attr] = value
+        for field in _RECORD_FIELDS:
+            value = getattr(self, field, None)
+            if value is not None:
+                new_item[field] = value
 
         self._polarion._soap.call("TestManagement", "executeTest", testRunURI=self._test_run.uri, record=new_item)
         self._reload_from_polarion()

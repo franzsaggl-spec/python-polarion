@@ -80,12 +80,13 @@ class Polarion:
             raise PolarionAuthError("Either password or token must be provided")
 
     def _check_session(self) -> None:
-        """Periodically verify the session is still valid, re-login if needed."""
+        """Check session validity before a global query. Only called by query_workitems."""
         if time.time() - self._last_session_check > _SESSION_CHECK_INTERVAL:
             try:
                 self._soap.call("Project", "getUser", userId=self.user)
                 self._last_session_check = time.time()
-            except Exception:
+            except PolarionApiError:
+                logger.info("Session appears expired, attempting re-login")
                 self._login()
                 self._last_session_check = time.time()
 
@@ -138,10 +139,16 @@ class Polarion:
     def download_from_svn(self, url: str) -> bytes:
         """Download content from the Polarion SVN repository.
 
+        Note: SVN download uses HTTP Basic auth. Token-based sessions
+        are not supported for SVN downloads.
+
         :param url: SVN URL
         :return: File content as bytes
-        :raises PolarionApiError: If download fails
+        :raises PolarionApiError: If download fails or token auth is used
         """
+        if self._password is None:
+            raise PolarionApiError("SVN downloads require password authentication; token auth is not supported for SVN")
+
         download_url = url
         if self.svn_repo_url is not None:
             orig_url = urlparse(url)
@@ -152,11 +159,15 @@ class Polarion:
                 f"/{new_root_url.path.strip('/')}/{orig_url_path_without_repo}"
             )
 
-        resp = requests.get(
-            download_url,
-            auth=(self.user, self._password or ""),
-            verify=self.verify_certificate,
-        )
+        try:
+            resp = self._soap._session.get(
+                download_url,
+                auth=(self.user, self._password),
+                verify=self.verify_certificate,
+            )
+        except requests.RequestException as e:
+            raise PolarionApiError(f"Could not download from {url}: {e}") from e
+
         if resp.ok:
             return resp.content
         raise PolarionApiError(f"Could not download from {url}. Got {resp.status_code}: {resp.reason}")

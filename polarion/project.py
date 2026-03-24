@@ -91,7 +91,7 @@ class Project:
         field_list: list[str] | None = None,
         limit: int = 100,
     ) -> list[Any]:
-        """Search for work items (returns lightweight results).
+        """Search for work items (returns raw dicts, not Workitem objects).
 
         For full Workitem objects, use search_workitems_full().
 
@@ -99,6 +99,7 @@ class Project:
         :param order: Sort field
         :param field_list: Fields to retrieve (default: ["id"])
         :param limit: Maximum results (-1 for unlimited)
+        :return: List of dicts with the requested fields
         """
         if field_list is None:
             field_list = ["id"]
@@ -127,8 +128,8 @@ class Project:
             if wi_id:
                 try:
                     workitems.append(Workitem(self.polarion, self, str(wi_id)))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Skipping unresolvable workitem %s: %s", wi_id, e)
         return workitems
 
     def search_workitems_in_baseline(

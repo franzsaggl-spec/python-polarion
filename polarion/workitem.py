@@ -35,6 +35,9 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
     :param new_workitem_type: Type for creating a new work item
     :param new_workitem_fields: Fields for the new work item
     :param polarion_workitem: Pre-fetched work item data dict
+
+    Exactly one of ``id``, ``uri``, ``new_workitem_type``, or ``polarion_workitem``
+    must be provided.
     """
 
     _default_summary_fields = ["id", "title", "type", "status"]
@@ -44,7 +47,6 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
         INTERNAL_REF = "internal reference"
         EXTERNAL_REF = "external reference"
 
-    # Explicitly declared attributes for IDE support
     title: str | None = None
     type: Any = None
     status: Any = None
@@ -146,8 +148,10 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
                         raise PolarionFieldError(f"New workitem requires fields: {items} via new_workitem_fields")
         except PolarionFieldError:
             raise
-        except Exception:
-            pass  # Some Polarion versions don't support this
+        except PolarionApiError as e:
+            logger.debug("Could not check required fields (may not be supported): %s", e)
+        except Exception as e:
+            logger.warning("Unexpected error checking required fields: %s", e)
 
         if fields is not None:
             new_item.update(fields)
@@ -223,8 +227,8 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
                 user_data = a.get("user", {})
                 try:
                     users.append(User(self._polarion, user_data if isinstance(user_data, dict) else {"id": user_data}))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Skipping unresolvable approver user %s: %s", user_data, e)
         return users
 
     def add_approvee(self, user: User, remove_others: bool = False) -> None:
@@ -254,8 +258,8 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
         for u in user_list:
             try:
                 users.append(User(self._polarion, u if isinstance(u, dict) else {"id": u}))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Skipping unresolvable assigned user %s: %s", u, e)
         return users
 
     def add_assignee(self, user: User, remove_others: bool = False) -> None:
@@ -337,6 +341,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
         """Perform a workflow action by name.
 
         :param action_name: Action name or native action ID
+        :raises PolarionFieldError: If the action is not available
         """
         actions = self._polarion._soap.call("Tracker", "getAvailableActions", workitemURI=self.uri)
         if isinstance(actions, list):
@@ -347,6 +352,10 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
                             "Tracker", "performWorkflowAction", workitemURI=self.uri, actionId=action["actionId"]
                         )
                         return
+        available = []
+        if isinstance(actions, list):
+            available = [a.get("nativeActionId", "") for a in actions if isinstance(a, dict)]
+        raise PolarionFieldError(f"Action '{action_name}' not available. Available: {available}")
 
     def perform_action_id(self, action_id: int) -> None:
         """Perform a workflow action by ID."""
@@ -455,8 +464,8 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
                                     Workitem(self._polarion, self._project, uri=li["workItemURI"]),
                                 )
                             )
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.warning("Skipping unresolvable linked item %s: %s", li.get("workItemURI"), e)
         return linked
 
     def get_linked_items(self) -> list[Workitem]:
@@ -612,7 +621,8 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
         try:
             result = self._polarion._soap.call("Tracker", "getCustomFieldKeys", workitemURI=self.uri)
             return isinstance(result, list) and "testSteps" in result
-        except Exception:
+        except PolarionApiError as e:
+            logger.debug("Could not check test step field: %s", e)
             return False
 
     def _get_configured_test_step_attrs(self, attr: str = "name") -> list[str]:
@@ -661,7 +671,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
     # --- Save ---
 
     def save(self) -> None:
-        """Save changes to Polarion."""
+        """Save changes to Polarion. Deferred if inside a batch() context."""
         if self._batch_save:
             return
 

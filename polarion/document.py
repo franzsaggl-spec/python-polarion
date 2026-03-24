@@ -109,7 +109,10 @@ class Document(CustomFields):
 
     def get_top_level_workitem(self) -> Workitem:
         """Get the top-level work item (usually the document title)."""
-        return create_from_uri(self._polarion, self._project, self.get_workitem_uris()[0])
+        uris = self.get_workitem_uris()
+        if not uris:
+            raise PolarionNotFoundError("Document has no work items")
+        return create_from_uri(self._polarion, self._project, uris[0])
 
     def get_children(self, workitem: Workitem) -> list[Workitem]:
         """Get children of a work item within this document.
@@ -131,8 +134,8 @@ class Document(CustomFields):
                     if role_id == struct_role_id and wi_uri in doc_uris:
                         try:
                             children.append(create_from_uri(self._polarion, self._project, wi_uri))
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.warning("Skipping unresolvable child workitem %s: %s", wi_uri, e)
         return children
 
     def get_parent(self, workitem: Workitem) -> Workitem | None:

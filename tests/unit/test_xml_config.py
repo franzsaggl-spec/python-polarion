@@ -178,13 +178,13 @@ class TestConfigDefaults:
 
 
 # ---------------------------------------------------------------------------
-# XmlParser.tranform_string_properties
+# XmlParser.transform_string_properties
 # ---------------------------------------------------------------------------
 
 
 class TestXmlParserTransformStringProperties:
     def test_single_property(self):
-        result = XmlParser.tranform_string_properties("[[PROPERTY|verifies=REQ-001]]")
+        result = XmlParser.transform_string_properties("[[PROPERTY|verifies=REQ-001]]")
         assert len(result) == 1
         assert result[0]["name"] == "verifies"
         assert result[0]["value"] == "REQ-001"
@@ -192,15 +192,15 @@ class TestXmlParserTransformStringProperties:
     def test_multiple_properties_on_separate_lines(self):
         # Each property must be on its own line due to greedy regex matching
         text = "[[PROPERTY|verifies=REQ-001]]\n[[PROPERTY|validates=REQ-002]]"
-        result = XmlParser.tranform_string_properties(text)
+        result = XmlParser.transform_string_properties(text)
         assert len(result) == 2
 
     def test_no_properties(self):
-        result = XmlParser.tranform_string_properties("plain text no properties")
+        result = XmlParser.transform_string_properties("plain text no properties")
         assert result == []
 
     def test_empty_string(self):
-        result = XmlParser.tranform_string_properties("")
+        result = XmlParser.transform_string_properties("")
         assert result == []
 
 

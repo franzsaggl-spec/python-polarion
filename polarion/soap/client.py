@@ -110,13 +110,15 @@ class SoapClient:
                 },
             )
             self._extract_session(response_bytes)
+        except (PolarionConnectionError, PolarionApiError):
+            raise
         except Exception as e:
             raise PolarionAuthError(f"Could not log in for user {user}") from e
 
     def login_with_token(self, user: str, token: str) -> None:
         """Authenticate with a personal access token.
 
-        :param user: Username
+        :param user: Username (used for error reporting only; not sent in the SOAP call)
         :param token: Access token
         :raises PolarionAuthError: If login fails
         """
@@ -126,11 +128,13 @@ class SoapClient:
                 "logInWithToken",
                 {
                     "tokenType": "AccessToken",
-                    "tokenValue": token,
                     "additionalData": "",
+                    "tokenValue": token,
                 },
             )
             self._extract_session(response_bytes)
+        except (PolarionConnectionError, PolarionApiError):
+            raise
         except Exception as e:
             raise PolarionAuthError(f"Could not log in with token for user {user}") from e
 
@@ -138,8 +142,8 @@ class SoapClient:
         """End the current session."""
         try:
             self.call("Session", "endSession")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Logout failed (session may already be expired): %s", e)
 
     def call(self, service: str, method: str, **params: Any) -> Any:
         """Make a SOAP call and return parsed response.

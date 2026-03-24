@@ -7,10 +7,13 @@ parameters, arrays, typed elements, nillable values, and binary data.
 from __future__ import annotations
 
 import base64
+import logging
 from datetime import date, datetime
 from typing import Any
 
 from lxml import etree
+
+logger = logging.getLogger(__name__)
 
 # SOAP / Polarion namespaces
 NS_SOAP = "http://schemas.xmlsoap.org/soap/envelope/"
@@ -74,7 +77,10 @@ def build_envelope(
         "xsd": NS_XSD,
     }
 
-    svc_ns = SERVICE_NAMESPACES.get(service, {})
+    svc_ns = SERVICE_NAMESPACES.get(service)
+    if svc_ns is None:
+        logger.warning("Service '%s' has no known namespace; SOAP envelope may be malformed", service)
+        svc_ns = {}
     impl_ns = svc_ns.get("ns", "")
     if impl_ns:
         nsmap["impl"] = impl_ns

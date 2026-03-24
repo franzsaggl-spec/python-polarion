@@ -23,7 +23,7 @@ class Comments(PolarionObject, ABC):
         :param title: Title of the comment (None for replies)
         :param comment: Comment text (may contain HTML)
         :param parent: Parent comment URI for replies. If None, added as root comment.
-        :param content_type: "html" or "plain"
+        :param content_type: "html" or "plain" (expanded to "text/html" or "text/plain")
         :raises PolarionFieldError: If content_type is invalid
         :raises PolarionApiError: If comments are disabled
         """

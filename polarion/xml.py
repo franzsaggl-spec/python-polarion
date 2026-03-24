@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any, Callable
 
 from .client import Polarion
-from .exceptions import PolarionConfigError
+from .exceptions import PolarionConfigError, PolarionNotFoundError
 from .record import Record
 
 logger = logging.getLogger(__name__)
@@ -121,12 +121,12 @@ class XmlParser:
             raise PolarionConfigError(f"Unmanaged {XmlParser.TEST_SUITE} {test_suite.tag} in {parent['path']}")
 
     # matches expressions like [[PROPERTY|verifies=REQ-001]]
-    RE_PATTTERN = re.compile("\\[\\[PROPERTY\\|(.*)\\=(.*)\\]\\]")
+    RE_PATTERN = re.compile("\\[\\[PROPERTY\\|(.*)\\=(.*)\\]\\]")
 
     @classmethod
-    def tranform_string_properties(cls, value: str) -> list[dict[str, str]]:
+    def transform_string_properties(cls, value: str) -> list[dict[str, str]]:
         result: list[dict[str, str]] = []
-        tmp = XmlParser.RE_PATTTERN.findall(value)
+        tmp = XmlParser.RE_PATTERN.findall(value)
         for res in tmp:
             if len(res) == 2:
                 result.append({"name": res[0], "value": res[1]})
@@ -170,7 +170,7 @@ class XmlParser:
                 elif elem.tag == XmlParser.SYSOUT:
                     if "properties" not in case:
                         case.update({"properties": []})
-                    for prop in XmlParser.tranform_string_properties(elem.text):
+                    for prop in XmlParser.transform_string_properties(elem.text):
                         case["properties"].append({prop["name"]: prop["value"]})
             returned_cases.append(case)
         else:
@@ -306,7 +306,7 @@ class Importer:
                         else:
                             try:
                                 linked_item = project.get_workitem(prop.get(key))
-                            except Exception:
+                            except PolarionNotFoundError:
                                 linked_items = project.search_workitems(
                                     query=f"title:{title}", field_list=["id", "title"]
                                 )
@@ -331,11 +331,7 @@ class Importer:
 
 
 class ResultExporter:
-    """Export an object as JSON (tested with a testrun).
-
-    In v2 the API returns plain Python dicts/lists rather than zeep
-    objects, so the handler table is simplified accordingly.
-    """
+    """Export a Polarion object (e.g. Testrun) as a JSON-serialisable dict."""
 
     _HANDLERS: dict[str, Callable] = {
         "Testrun": lambda cls, obj: cls._make_serialisable(

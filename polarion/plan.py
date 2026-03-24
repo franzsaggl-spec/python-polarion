@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -10,6 +11,8 @@ from .base.polarion_object import PolarionObject
 from .exceptions import PolarionFieldError, PolarionNotFoundError
 from .factory import Creator
 from .workitem import Workitem
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .client import Polarion
@@ -74,7 +77,7 @@ class Plan(PolarionObject):
         if self._uri is not None:
             self._polarion_record = self._polarion._soap.call("Planning", "getPlanByUri", uri=self._uri)
 
-        if self._id is not None and self._polarion_record is None:
+        if self._id is not None and not self._polarion_record:
             self._polarion_record = self._polarion._soap.call(
                 "Planning", "getPlanById", projectId=self._project.id, planId=self._id
             )
@@ -92,22 +95,18 @@ class Plan(PolarionObject):
     def set_due_date(self, due_date: date | datetime) -> None:
         """Set the due date."""
         self.dueDate = due_date
-        self.save()
 
     def set_start_date(self, start_date: date | datetime) -> None:
         """Set the start date."""
         self.startDate = start_date
-        self.save()
 
     def set_finished_on_date(self, finished_on: date | datetime) -> None:
         """Set the finished date."""
         self.finishedOn = finished_on
-        self.save()
 
     def set_started_on_date(self, started_on: date | datetime) -> None:
         """Set the started on date."""
         self.startedOn = started_on
-        self.save()
 
     def add_workitem(self, workitem: Workitem) -> None:
         """Add a work item to this plan.
@@ -155,8 +154,8 @@ class Plan(PolarionObject):
                 if isinstance(item, dict) and item.get("id") is not None:
                     try:
                         workitems.append(Workitem(self._polarion, self._project, polarion_workitem=item))
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning("Skipping unresolvable plan workitem %s: %s", item.get("id", "unknown"), e)
         return workitems
 
     def get_parent(self) -> Plan:

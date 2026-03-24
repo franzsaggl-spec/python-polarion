@@ -29,7 +29,10 @@ def parse_response(content: bytes) -> Any:
     :return: Parsed body content (dict, list, str, or None)
     :raises PolarionApiError: If the response contains a SOAP fault
     """
-    root = etree.fromstring(content)
+    try:
+        root = etree.fromstring(content)
+    except etree.XMLSyntaxError as e:
+        raise PolarionApiError(f"Server returned invalid XML response: {e}") from e
 
     # Check for SOAP fault
     fault = root.find(f".//{{{NS_SOAP}}}Fault")
@@ -61,19 +64,6 @@ def parse_response(content: bytes) -> Any:
 
     # Multiple children → return the parsed response element
     return _parse_element(response_elem)
-
-
-def parse_session_id(content: bytes) -> etree._Element | None:
-    """Extract the session ID element from a SOAP response header.
-
-    :param content: Raw XML response bytes
-    :return: Session ID element, or None
-    """
-    root = etree.fromstring(content)
-    return root.find(f".//{{{_NS_SESSION}}}sessionID")
-
-
-_NS_SESSION = "http://ws.polarion.com/session"
 
 
 def _get_text(elem: etree._Element, tag: str) -> str | None:
@@ -110,7 +100,7 @@ def _parse_element(elem: etree._Element) -> Any:
     - str for leaf text elements
     - dict for complex elements
     - list for repeated elements with same name
-    - Attempts to detect dates, booleans, integers
+    - Attempts to detect dates and booleans
     """
     if _is_nil(elem):
         return None
@@ -154,7 +144,7 @@ def _parse_element(elem: etree._Element) -> Any:
 
 
 def _parse_text(text: str | None) -> Any:
-    """Parse text content, attempting type detection."""
+    """Parse text content, attempting type detection for booleans and datetimes."""
     if text is None:
         return None
 
@@ -164,23 +154,9 @@ def _parse_text(text: str | None) -> Any:
     if text.lower() == "false":
         return False
 
-    # Try integer
-    try:
-        return int(text)
-    except ValueError:
-        pass
-
-    # Try float (but not for strings that happen to have dots like URIs)
-    if "." in text and not text.startswith("http") and not text.startswith("subterra"):
-        try:
-            return float(text)
-        except ValueError:
-            pass
-
     # Try datetime (ISO format)
     if len(text) >= 19 and "T" in text:
         try:
-            # Handle timezone formats
             return datetime.fromisoformat(text.replace("Z", "+00:00"))
         except ValueError:
             pass

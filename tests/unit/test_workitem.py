@@ -3,6 +3,9 @@
 import copy
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from polarion.exceptions import PolarionFieldError
 from polarion.workitem import Workitem
 
 
@@ -321,3 +324,24 @@ def test_repr_does_not_truncate_short_title(mock_polarion, mock_project, mock_wo
 
     assert short_title in r
     assert "..." not in r
+
+
+# ------------------------------------------------------------------
+# perform_action raises PolarionFieldError when action not found
+# ------------------------------------------------------------------
+
+
+def test_perform_action_raises_when_action_not_found(mock_polarion, mock_project, mock_workitem_data):
+    """perform_action should raise PolarionFieldError when the requested action is not available."""
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+
+    # Mock getAvailableActions to return actions that don't match
+    mock_polarion._soap.call.reset_mock()
+    mock_polarion._soap.call.side_effect = None
+    mock_polarion._soap.call.return_value = [
+        {"nativeActionId": "approve", "actionName": "Approve", "actionId": 1},
+        {"nativeActionId": "reject", "actionName": "Reject", "actionId": 2},
+    ]
+
+    with pytest.raises(PolarionFieldError, match="Action 'nonexistent' not available"):
+        wi.perform_action("nonexistent")

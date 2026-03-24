@@ -1,7 +1,7 @@
 """Python dataclasses wrapping Polarion SOAP types.
 
-These replace the raw zeep types that were previously exposed to users.
-Users interact with these clean Python objects instead of SOAP internals.
+Optional dataclasses for constructing SOAP values. Model attributes are
+currently returned as plain dicts from parsed SOAP responses.
 """
 
 from __future__ import annotations

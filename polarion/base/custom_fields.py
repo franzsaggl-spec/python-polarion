@@ -45,11 +45,9 @@ class CustomFields(PolarionObject, ABC):
         for cf in self.customFields:
             if cf.get("key") == key:
                 cf["value"] = value
-                self.save()
                 return
 
         self.customFields.append({"key": key, "value": value})
-        self.save()
 
     def get_custom_field(self, key: str) -> Any | None:
         """Get a custom field value.

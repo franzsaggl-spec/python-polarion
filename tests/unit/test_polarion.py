@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from polarion.client import Polarion
-from polarion.exceptions import PolarionApiError
+from polarion.exceptions import PolarionApiError, PolarionAuthError
 
 # ------------------------------------------------------------------
 # has_service
@@ -78,43 +78,46 @@ def test_str_equals_repr(mock_polarion):
 
 
 def test_download_from_svn_raises_on_failure(mock_polarion):
-    with patch("polarion.client.requests") as mock_req:
-        resp = MagicMock()
-        resp.ok = False
-        resp.status_code = 404
-        resp.reason = "Not Found"
-        mock_req.get.return_value = resp
+    resp = MagicMock()
+    resp.ok = False
+    resp.status_code = 404
+    resp.reason = "Not Found"
+    mock_polarion._soap._session.get.return_value = resp
 
-        with pytest.raises(PolarionApiError, match="Could not download"):
-            mock_polarion.download_from_svn("http://polarion.example.com/repo/file.txt")
+    with pytest.raises(PolarionApiError, match="Could not download"):
+        mock_polarion.download_from_svn("http://polarion.example.com/repo/file.txt")
 
 
 def test_download_from_svn_returns_content_on_success(mock_polarion):
-    with patch("polarion.client.requests") as mock_req:
-        resp = MagicMock()
-        resp.ok = True
-        resp.content = b"file-bytes"
-        mock_req.get.return_value = resp
+    resp = MagicMock()
+    resp.ok = True
+    resp.content = b"file-bytes"
+    mock_polarion._soap._session.get.return_value = resp
 
-        result = mock_polarion.download_from_svn("http://polarion.example.com/repo/file.txt")
-        assert result == b"file-bytes"
+    result = mock_polarion.download_from_svn("http://polarion.example.com/repo/file.txt")
+    assert result == b"file-bytes"
 
 
 def test_download_from_svn_uses_custom_svn_repo_url(mock_polarion):
     mock_polarion.svn_repo_url = "http://other-host.example.com/custom-repo"
 
-    with patch("polarion.client.requests") as mock_req:
-        resp = MagicMock()
-        resp.ok = True
-        resp.content = b"custom-bytes"
-        mock_req.get.return_value = resp
+    resp = MagicMock()
+    resp.ok = True
+    resp.content = b"custom-bytes"
+    mock_polarion._soap._session.get.return_value = resp
 
-        result = mock_polarion.download_from_svn("http://polarion.example.com/repo/project/path/file.txt")
-        assert result == b"custom-bytes"
+    result = mock_polarion.download_from_svn("http://polarion.example.com/repo/project/path/file.txt")
+    assert result == b"custom-bytes"
 
-        # Verify the URL was rewritten to the custom repo
-        called_url = mock_req.get.call_args[0][0]
-        assert "other-host.example.com" in called_url
+    # Verify the URL was rewritten to the custom repo
+    called_url = mock_polarion._soap._session.get.call_args[0][0]
+    assert "other-host.example.com" in called_url
+
+
+def test_download_from_svn_raises_on_token_auth(mock_polarion):
+    mock_polarion._password = None
+    with pytest.raises(PolarionApiError, match="password authentication"):
+        mock_polarion.download_from_svn("http://polarion.example.com/repo/file.txt")
 
 
 # ------------------------------------------------------------------
@@ -161,3 +164,38 @@ def test_no_hardcoded_credentials():
     # Also check there is no default password in the __init__ signature
     init_pattern = r"def __init__\(.*password\s*=\s*['\"]"
     assert not re.search(init_pattern, source), "Found hardcoded default password in __init__ signature"
+
+
+# ------------------------------------------------------------------
+# Login with no credentials
+# ------------------------------------------------------------------
+
+
+def test_login_no_credentials_raises():
+    """Creating Polarion with no password and no token should raise PolarionAuthError."""
+    with patch("polarion.client.SoapClient") as MockSoapClient:
+        mock_soap = MagicMock()
+        MockSoapClient.return_value = mock_soap
+        mock_soap.discover_services.return_value = None
+
+        with pytest.raises(PolarionAuthError, match="password or token"):
+            Polarion(
+                "http://polarion.example.com/polarion",
+                "testuser",
+            )
+
+
+# ------------------------------------------------------------------
+# _check_session re-login on PolarionApiError
+# ------------------------------------------------------------------
+
+
+def test_check_session_relogin_on_api_error(mock_polarion):
+    """When getUser raises PolarionApiError, _check_session should re-login."""
+    mock_polarion._last_session_check = time.time() - 600  # well past interval
+    mock_polarion._soap.call.reset_mock()
+    mock_polarion._soap.call.side_effect = PolarionApiError("session expired")
+
+    with patch.object(mock_polarion, "_login") as mock_login:
+        mock_polarion._check_session()
+        mock_login.assert_called_once()
