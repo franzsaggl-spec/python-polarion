@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ..parser.document import parse_document, parse_document_list
 from ..types.common import Page
 from ..types.document import Document, DocumentCreate
 from ..types.workitem import WorkitemDetail, WorkitemSummary
@@ -8,25 +9,50 @@ from .base import ServiceBase
 
 class DocumentsService(ServiceBase):
     def get(self, project_id: str, *, uri: str | None = None, location: str | None = None) -> Document:
-        raise NotImplementedError
+        if uri:
+            raw = self.transport.call("Tracker", "getModuleByUri", uri=uri)
+        elif location:
+            raw = self.transport.call("Tracker", "getModuleByLocation", projectId=project_id, location=location)
+        else:
+            raise ValueError("Either uri or location is required")
+        return parse_document(raw)
 
     def create(self, project_id: str, payload: DocumentCreate) -> Document:
-        raise NotImplementedError
+        raw = self.transport.call(
+            "Tracker",
+            "createDocument",
+            projectId=project_id,
+            location=payload.location,
+            name=payload.name,
+            title=payload.title,
+            allowedWorkItemTypes=payload.allowed_workitem_types,
+            structureLinkRole=payload.structure_link_role,
+            homePageContent=payload.home_page_content,
+        )
+        return parse_document(raw)
 
     def delete(self, project_id: str, uri: str) -> None:
-        raise NotImplementedError
+        self.transport.call("Tracker", "deleteModule", projectId=project_id, uri=uri)
 
     def save(self, doc: Document) -> Document:
-        raise NotImplementedError
+        raw = self.transport.call("Tracker", "updateModule", uri=doc.uri, title=doc.title)
+        return parse_document(raw)
 
     def list_spaces(self, project_id: str) -> list[str]:
-        raise NotImplementedError
+        raw = self.transport.call("Tracker", "getDocumentSpaces", projectId=project_id)
+        return [str(x) for x in raw] if isinstance(raw, list) else []
 
     def list_locations(self, project_id: str) -> list[str]:
-        raise NotImplementedError
+        raw = self.transport.call("Tracker", "getDocumentLocations", projectId=project_id)
+        return [str(x) for x in raw] if isinstance(raw, list) else []
 
     def list_in_space(self, project_id: str, space: str, *, offset: int = 0, limit: int = 100) -> Page[Document]:
-        raise NotImplementedError
+        raw = self.transport.call("Tracker", "getModules", projectId=project_id, space=space)
+        items = parse_document_list(raw)
+        sliced = items[offset : offset + limit]
+        return Page(
+            items=sliced, total=len(items), offset=offset, limit=limit, has_more=offset + len(sliced) < len(items)
+        )
 
     def workitems(self, project_id: str, document_uri: str) -> Page[WorkitemSummary]:
         raise NotImplementedError
@@ -41,7 +67,12 @@ class DocumentsService(ServiceBase):
         raise NotImplementedError
 
     def export_pdf(self, project_id: str, document_uri: str) -> bytes:
-        raise NotImplementedError
+        raw = self.transport.call("Tracker", "exportDocumentToPDF", projectId=project_id, uri=document_uri)
+        if isinstance(raw, bytes):
+            return raw
+        if isinstance(raw, str):
+            return raw.encode()
+        return b""
 
     def reuse(
         self,
@@ -55,4 +86,16 @@ class DocumentsService(ServiceBase):
         link_role: str | None = "derived_from",
         derived_fields: list[str] | None = None,
     ) -> Document:
-        raise NotImplementedError
+        raw = self.transport.call(
+            "Tracker",
+            "createDocumentFromModule",
+            projectId=project_id,
+            uri=document_uri,
+            targetProjectId=target_project_id,
+            targetLocation=target_location,
+            targetName=target_name,
+            targetTitle=target_title,
+            linkRole=link_role,
+            derivedFields=derived_fields or [],
+        )
+        return parse_document(raw)
