@@ -1,6 +1,13 @@
 Changelog
 =========
 
+V3.0.0 (2026-03-24)
+-------------------
+- Reset package to v3-only API surface.
+- Added typed v3 client/services/types/parser/transport skeleton.
+- Replaced legacy test suite with v3 contract-focused tests.
+- Rewrote project documentation to v3-only usage.
+
 V2.0.2 (2026-03-24)
 -------------------
 - Internal refactor: decomposed Workitem internals into focused behavior modules under `polarion/workitem_actions/`.
