@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from abc import ABC
 from html.parser import HTMLParser
-from typing import Any
 from xml.etree import ElementTree
 
 from texttable import Texttable

@@ -141,7 +141,16 @@ def test_get_workitems_with_records(mock_polarion, mock_project, mock_plan_data)
 
     # Create mock plan records as plain dicts
     plan.records = [
-        {"item": {"id": "WI-001", "title": "Work item 1", "uri": "uri1", "type": {"id": "task"}, "status": {"id": "open"}, "project": {"id": "test_project"}}},
+        {
+            "item": {
+                "id": "WI-001",
+                "title": "Work item 1",
+                "uri": "uri1",
+                "type": {"id": "task"},
+                "status": {"id": "open"},
+                "project": {"id": "test_project"},
+            }
+        },
     ]
 
     with patch("polarion.plan.Workitem") as MockWorkitem:

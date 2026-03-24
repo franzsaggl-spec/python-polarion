@@ -1,7 +1,6 @@
 """Tests for Testrun with mocked SOAP layer (v2.0.0 API)."""
 
 import copy
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -83,9 +82,7 @@ def test_testrun_creation_from_uri(mock_polarion, mock_testrun_data):
     tr = Testrun(mock_polarion, uri=data["uri"])
 
     assert tr.id == "TR-001"
-    mock_polarion._soap.call.assert_called_once_with(
-        "TestManagement", "getTestRunByUri", uri=data["uri"]
-    )
+    mock_polarion._soap.call.assert_called_once_with("TestManagement", "getTestRunByUri", uri=data["uri"])
 
 
 def test_testrun_neither_uri_nor_data_raises_field_error(mock_polarion):

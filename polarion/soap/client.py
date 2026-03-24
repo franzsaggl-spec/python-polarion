@@ -10,7 +10,6 @@ import copy
 import logging
 import re
 from typing import Any
-from urllib.parse import urljoin
 
 import requests
 from lxml import etree
@@ -20,7 +19,7 @@ from ..exceptions import (
     PolarionAuthError,
     PolarionConnectionError,
 )
-from .envelope import NIL, build_envelope
+from .envelope import build_envelope
 from .parser import parse_response
 
 logger = logging.getLogger(__name__)
@@ -73,8 +72,13 @@ class SoapClient:
         """
         if static:
             default_services = [
-                "Session", "Project", "Tracker", "Builder",
-                "Planning", "TestManagement", "Security",
+                "Session",
+                "Project",
+                "Tracker",
+                "Builder",
+                "Planning",
+                "TestManagement",
+                "Security",
             ]
             for service in default_services:
                 self._services[service] = f"{self._service_url}/{service}WebService"
@@ -97,10 +101,14 @@ class SoapClient:
         :raises PolarionAuthError: If login fails
         """
         try:
-            response_bytes = self._raw_call("Session", "logIn", {
-                "userName": user,
-                "password": password,
-            })
+            response_bytes = self._raw_call(
+                "Session",
+                "logIn",
+                {
+                    "userName": user,
+                    "password": password,
+                },
+            )
             self._extract_session(response_bytes)
         except Exception as e:
             raise PolarionAuthError(f"Could not log in for user {user}") from e
@@ -113,11 +121,15 @@ class SoapClient:
         :raises PolarionAuthError: If login fails
         """
         try:
-            response_bytes = self._raw_call("Session", "logInWithToken", {
-                "tokenType": "AccessToken",
-                "tokenValue": token,
-                "additionalData": "",
-            })
+            response_bytes = self._raw_call(
+                "Session",
+                "logInWithToken",
+                {
+                    "tokenType": "AccessToken",
+                    "tokenValue": token,
+                    "additionalData": "",
+                },
+            )
             self._extract_session(response_bytes)
         except Exception as e:
             raise PolarionAuthError(f"Could not log in with token for user {user}") from e

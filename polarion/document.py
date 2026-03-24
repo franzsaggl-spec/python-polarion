@@ -54,9 +54,7 @@ class Document(CustomFields):
         self._original_data: dict[str, Any] = {}
 
         if self._uri is not None:
-            self._polarion_data = self._polarion._soap.call(
-                "Tracker", "getModuleByUri", uri=self._uri
-            )
+            self._polarion_data = self._polarion._soap.call("Tracker", "getModuleByUri", uri=self._uri)
             if isinstance(self._polarion_data, dict) and self._polarion_data.get("unresolvable"):
                 raise PolarionNotFoundError(f"Cannot find document at URI {self._uri}")
 
@@ -86,10 +84,10 @@ class Document(CustomFields):
         :return: PDF content as bytes
         """
         from .types import PdfProperties
+
         pdf_props = PdfProperties()
         return self._polarion._soap.call(
-            "Tracker", "exportDocumentToPDF",
-            moduleURI=self._uri, pdfProperties=pdf_props.to_soap()
+            "Tracker", "exportDocumentToPDF", moduleURI=self._uri, pdfProperties=pdf_props.to_soap()
         )
 
     def get_workitem_uris(self) -> list[str]:
@@ -194,11 +192,16 @@ class Document(CustomFields):
         if derived_fields is None and link_role is not None:
             derived_fields = ["title", "description"]
         new_uri = self._polarion._soap.call(
-            "Tracker", "reuseDocument",
-            moduleURI=self._uri, targetProjectId=target_project_id,
-            targetLocation=target_location, targetModuleName=target_name,
-            targetModuleTitle=target_title, copyWorkItems=True,
-            linkRole=link_role, derivedFields=derived_fields
+            "Tracker",
+            "reuseDocument",
+            moduleURI=self._uri,
+            targetProjectId=target_project_id,
+            targetLocation=target_location,
+            targetModuleName=target_name,
+            targetModuleTitle=target_title,
+            copyWorkItems=True,
+            linkRole=link_role,
+            derivedFields=derived_fields,
         )
         return create_from_uri(self._polarion, self._project, new_uri)
 
@@ -209,9 +212,11 @@ class Document(CustomFields):
         :param auto_suspect: Mark changed links as suspect
         """
         self._polarion._soap.call(
-            "Tracker", "updateDerivedDocument",
-            moduleURI=self._uri, revision=revision if revision is not None else NIL,
-            autoSuspect=auto_suspect
+            "Tracker",
+            "updateDerivedDocument",
+            moduleURI=self._uri,
+            revision=revision if revision is not None else NIL,
+            autoSuspect=auto_suspect,
         )
 
     def save(self) -> None:

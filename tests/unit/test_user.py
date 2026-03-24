@@ -1,7 +1,5 @@
 """Tests for the User class (v2.0.0 API)."""
 
-from unittest.mock import MagicMock
-
 import pytest
 
 from polarion.exceptions import PolarionNotFoundError

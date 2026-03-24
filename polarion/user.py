@@ -37,9 +37,7 @@ class User(PolarionObject):
         self._polarion_record = polarion_record
 
         if uri is not None:
-            self._polarion_record = self._polarion._soap.call(
-                "Project", "getUserByUri", uri=self._uri
-            )
+            self._polarion_record = self._polarion._soap.call("Project", "getUserByUri", uri=self._uri)
 
         if self._polarion_record is not None and isinstance(self._polarion_record, dict):
             if self._polarion_record.get("unresolvable"):

@@ -71,8 +71,7 @@ class Record(PolarionObject, BatchSaveMixin):
 
     def _reload_from_polarion(self) -> None:
         result = self._polarion._soap.call(
-            "TestManagement", "getTestCaseRecords",
-            testRunURI=self._test_run.uri, testCaseURI=self._testcase
+            "TestManagement", "getTestCaseRecords", testRunURI=self._test_run.uri, testCaseURI=self._testcase
         )
         if isinstance(result, list) and result:
             self._polarion_record = result[0]
@@ -95,9 +94,7 @@ class Record(PolarionObject, BatchSaveMixin):
         :param comment: Optional comment
         """
         if self.testStepResults is None:
-            test_steps = self._polarion._soap.call(
-                "TestManagement", "getTestSteps", workitemURI=self.testCaseURI
-            )
+            test_steps = self._polarion._soap.call("TestManagement", "getTestSteps", workitemURI=self.testCaseURI)
             num_steps = 0
             if isinstance(test_steps, dict):
                 steps = test_steps.get("steps", [])
@@ -113,9 +110,7 @@ class Record(PolarionObject, BatchSaveMixin):
             if isinstance(step_result, dict):
                 step_result["result"] = {"id": result.value}
                 if comment is not None:
-                    step_result["comment"] = {
-                        "content": comment, "type": "text/html", "contentLossy": False
-                    }
+                    step_result["comment"] = {"content": comment, "type": "text/html", "contentLossy": False}
             else:
                 self.testStepResults[step_number] = {
                     "result": {"id": result.value},
@@ -205,8 +200,11 @@ class Record(PolarionObject, BatchSaveMixin):
     def delete_attachment(self, file_name: str) -> None:
         """Delete an attachment."""
         self._polarion._soap.call(
-            "TestManagement", "deleteAttachmentFromTestRecord",
-            testRunURI=self._test_run.uri, index=self._index, fileName=file_name
+            "TestManagement",
+            "deleteAttachmentFromTestRecord",
+            testRunURI=self._test_run.uri,
+            index=self._index,
+            fileName=file_name,
         )
         self._reload_from_polarion()
 
@@ -215,9 +213,13 @@ class Record(PolarionObject, BatchSaveMixin):
         file_name = os.path.basename(file_path)
         with open(file_path, "rb") as f:
             self._polarion._soap.call(
-                "TestManagement", "addAttachmentToTestRecord",
-                testRunURI=self._test_run.uri, index=self._index,
-                fileName=file_name, title=title, content=f.read()
+                "TestManagement",
+                "addAttachmentToTestRecord",
+                testRunURI=self._test_run.uri,
+                index=self._index,
+                fileName=file_name,
+                title=title,
+                content=f.read(),
             )
         self._reload_from_polarion()
 
@@ -259,9 +261,12 @@ class Record(PolarionObject, BatchSaveMixin):
     def delete_attachment_from_test_step(self, step_index: int, file_name: str) -> None:
         """Delete an attachment from a test step."""
         self._polarion._soap.call(
-            "TestManagement", "deleteAttachmentFromTestStep",
-            testRunURI=self._test_run.uri, recordIndex=self._index,
-            stepIndex=step_index, fileName=file_name
+            "TestManagement",
+            "deleteAttachmentFromTestStep",
+            testRunURI=self._test_run.uri,
+            recordIndex=self._index,
+            stepIndex=step_index,
+            fileName=file_name,
         )
         self._reload_from_polarion()
 
@@ -270,9 +275,14 @@ class Record(PolarionObject, BatchSaveMixin):
         file_name = os.path.basename(file_path)
         with open(file_path, "rb") as f:
             self._polarion._soap.call(
-                "TestManagement", "addAttachmentToTestStep",
-                testRunURI=self._test_run.uri, recordIndex=self._index,
-                stepIndex=step_index, fileName=file_name, title=title, content=f.read()
+                "TestManagement",
+                "addAttachmentToTestStep",
+                testRunURI=self._test_run.uri,
+                recordIndex=self._index,
+                stepIndex=step_index,
+                fileName=file_name,
+                title=title,
+                content=f.read(),
             )
         self._reload_from_polarion()
 
@@ -288,10 +298,7 @@ class Record(PolarionObject, BatchSaveMixin):
             if not attr.startswith("_"):
                 new_item[attr] = value
 
-        self._polarion._soap.call(
-            "TestManagement", "executeTest",
-            testRunURI=self._test_run.uri, record=new_item
-        )
+        self._polarion._soap.call("TestManagement", "executeTest", testRunURI=self._test_run.uri, record=new_item)
         self._reload_from_polarion()
 
     def __repr__(self) -> str:

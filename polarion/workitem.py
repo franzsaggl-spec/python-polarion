@@ -15,7 +15,6 @@ from .base.polarion_object import BatchSaveMixin
 from .exceptions import PolarionApiError, PolarionFieldError, PolarionNotFoundError
 from .factory import Creator
 from .soap.envelope import NIL
-from .types import TextContent
 from .user import User
 
 if TYPE_CHECKING:
@@ -92,27 +91,22 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
 
         if self._uri:
             try:
-                self._polarion_data = self._polarion._soap.call(
-                    "Tracker", "getWorkItemByUri", uri=self._uri
-                )
+                self._polarion_data = self._polarion._soap.call("Tracker", "getWorkItemByUri", uri=self._uri)
                 if isinstance(self._polarion_data, dict):
                     self._id = self._polarion_data.get("id")
             except Exception as e:
-                raise PolarionNotFoundError(
-                    f"Cannot find workitem at URI {self._uri}"
-                ) from e
+                raise PolarionNotFoundError(f"Cannot find workitem at URI {self._uri}") from e
 
         elif id is not None:
             try:
                 self._polarion_data = self._polarion._soap.call(
-                    "Tracker", "getWorkItemById",
+                    "Tracker",
+                    "getWorkItemById",
                     projectId=self._project.id,
                     workitemId=self._id,
                 )
             except Exception as e:
-                raise PolarionNotFoundError(
-                    f"Cannot find workitem {self._id} in project {self._project.id}"
-                ) from e
+                raise PolarionNotFoundError(f"Cannot find workitem {self._id} in project {self._project.id}") from e
 
         elif new_workitem_type is not None:
             self._create_new(new_workitem_type, new_workitem_fields)
@@ -137,7 +131,8 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
         # Check required fields
         try:
             required = self._polarion._soap.call(
-                "Tracker", "getInitialWorkflowActionForProjectAndType",
+                "Tracker",
+                "getInitialWorkflowActionForProjectAndType",
                 projectId=self._project.id,
                 typeId={"id": workitem_type},
             )
@@ -148,9 +143,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
                     if isinstance(items, str):
                         items = [items]
                     if fields is None or not set(items) <= fields.keys():
-                        raise PolarionFieldError(
-                            f"New workitem requires fields: {items} via new_workitem_fields"
-                        )
+                        raise PolarionFieldError(f"New workitem requires fields: {items} via new_workitem_fields")
         except PolarionFieldError:
             raise
         except Exception:
@@ -160,9 +153,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
             new_item.update(fields)
 
         new_uri = self._polarion._soap.call("Tracker", "createWorkItem", content=new_item)
-        self._polarion_data = self._polarion._soap.call(
-            "Tracker", "getWorkItemByUri", uri=new_uri
-        )
+        self._polarion_data = self._polarion._soap.call("Tracker", "getWorkItemByUri", uri=new_uri)
         if isinstance(self._polarion_data, dict):
             self._id = self._polarion_data.get("id")
 
@@ -199,10 +190,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
                     if isinstance(row, dict):
                         values = row.get("values", {})
                         texts = values if isinstance(values, list) else [values]
-                        text_contents = [
-                            t.get("content", "") if isinstance(t, dict) else str(t)
-                            for t in texts
-                        ]
+                        text_contents = [t.get("content", "") if isinstance(t, dict) else str(t) for t in texts]
                         self._parsed_test_steps.append(dict(zip(columns, text_contents)))
 
     @staticmethod
@@ -247,9 +235,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
         """
         if remove_others:
             for current_user in self.get_approver_users():
-                self._polarion._soap.call(
-                    "Tracker", "removeApprovee", workitemURI=self.uri, userId=current_user.id
-                )
+                self._polarion._soap.call("Tracker", "removeApprovee", workitemURI=self.uri, userId=current_user.id)
 
         self._polarion._soap.call("Tracker", "addApprovee", workitemURI=self.uri, userId=user.id)
         self._reload_from_polarion()
@@ -280,9 +266,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
         """
         if remove_others:
             for current_user in self.get_assigned_users():
-                self._polarion._soap.call(
-                    "Tracker", "removeAssignee", workitemURI=self.uri, userId=current_user.id
-                )
+                self._polarion._soap.call("Tracker", "removeAssignee", workitemURI=self.uri, userId=current_user.id)
 
         self._polarion._soap.call("Tracker", "addAssignee", workitemURI=self.uri, userId=user.id)
         self._reload_from_polarion()
@@ -360,16 +344,13 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
                 if isinstance(action, dict):
                     if action.get("nativeActionId") == action_name or action.get("actionName") == action_name:
                         self._polarion._soap.call(
-                            "Tracker", "performWorkflowAction",
-                            workitemURI=self.uri, actionId=action["actionId"]
+                            "Tracker", "performWorkflowAction", workitemURI=self.uri, actionId=action["actionId"]
                         )
                         return
 
     def perform_action_id(self, action_id: int) -> None:
         """Perform a workflow action by ID."""
-        self._polarion._soap.call(
-            "Tracker", "performWorkflowAction", workitemURI=self.uri, actionId=action_id
-        )
+        self._polarion._soap.call("Tracker", "performWorkflowAction", workitemURI=self.uri, actionId=action_id)
 
     # --- Description ---
 
@@ -389,10 +370,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
         """
         if isinstance(hyperlink_type, Enum):
             hyperlink_type = hyperlink_type.value
-        self._polarion._soap.call(
-            "Tracker", "addHyperlink",
-            workitemURI=self.uri, url=url, role={"id": hyperlink_type}
-        )
+        self._polarion._soap.call("Tracker", "addHyperlink", workitemURI=self.uri, url=url, role={"id": hyperlink_type})
         self._reload_from_polarion()
 
     def remove_hyperlink(self, url: str) -> None:
@@ -409,8 +387,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
         :param link_type: Link role type
         """
         self._polarion._soap.call(
-            "Tracker", "addLinkedItem",
-            workitemURI=self.uri, linkedWorkitemURI=workitem.uri, role={"id": link_type}
+            "Tracker", "addLinkedItem", workitemURI=self.uri, linkedWorkitemURI=workitem.uri, role={"id": link_type}
         )
         self._reload_from_polarion()
         workitem._reload_from_polarion()
@@ -423,8 +400,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
         """
         if role is not None:
             self._polarion._soap.call(
-                "Tracker", "removeLinkedItem",
-                workitemURI=self.uri, linkedWorkitemURI=workitem.uri, role={"id": role}
+                "Tracker", "removeLinkedItem", workitemURI=self.uri, linkedWorkitemURI=workitem.uri, role={"id": role}
             )
         else:
             if self.linkedWorkItems is not None:
@@ -433,17 +409,27 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
                     if isinstance(li, dict) and li.get("workItemURI") == workitem.uri:
                         li_role = li.get("role", {})
                         self._polarion._soap.call(
-                            "Tracker", "removeLinkedItem",
-                            workitemURI=self.uri, linkedWorkitemURI=li["workItemURI"], role=li_role
+                            "Tracker",
+                            "removeLinkedItem",
+                            workitemURI=self.uri,
+                            linkedWorkitemURI=li["workItemURI"],
+                            role=li_role,
                         )
             if self.linkedWorkItemsDerived is not None:
-                items = self.linkedWorkItemsDerived if isinstance(self.linkedWorkItemsDerived, list) else [self.linkedWorkItemsDerived]
+                items = (
+                    self.linkedWorkItemsDerived
+                    if isinstance(self.linkedWorkItemsDerived, list)
+                    else [self.linkedWorkItemsDerived]
+                )
                 for li in items:
                     if isinstance(li, dict) and li.get("workItemURI") == workitem.uri:
                         li_role = li.get("role", {})
                         self._polarion._soap.call(
-                            "Tracker", "removeLinkedItem",
-                            workitemURI=li["workItemURI"], linkedWorkitemURI=self.uri, role=li_role
+                            "Tracker",
+                            "removeLinkedItem",
+                            workitemURI=li["workItemURI"],
+                            linkedWorkitemURI=self.uri,
+                            role=li_role,
                         )
         self._reload_from_polarion()
         workitem._reload_from_polarion()
@@ -463,10 +449,12 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
                         role_data = li.get("role", {})
                         role_id = role_data.get("id", "") if isinstance(role_data, dict) else str(role_data)
                         try:
-                            linked.append((
-                                role_id,
-                                Workitem(self._polarion, self._project, uri=li["workItemURI"]),
-                            ))
+                            linked.append(
+                                (
+                                    role_id,
+                                    Workitem(self._polarion, self._project, uri=li["workItemURI"]),
+                                )
+                            )
                         except Exception:
                             pass
         return linked
@@ -505,8 +493,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
         file_name = os.path.basename(file_path)
         with open(file_path, "rb") as f:
             self._polarion._soap.call(
-                "Tracker", "createAttachment",
-                workitemURI=self.uri, fileName=file_name, title=title, content=f.read()
+                "Tracker", "createAttachment", workitemURI=self.uri, fileName=file_name, title=title, content=f.read()
             )
         self._reload_from_polarion()
 
@@ -515,8 +502,13 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
         file_name = os.path.basename(file_path)
         with open(file_path, "rb") as f:
             self._polarion._soap.call(
-                "Tracker", "updateAttachment",
-                workitemURI=self.uri, id=attachment_id, fileName=file_name, title=title, content=f.read()
+                "Tracker",
+                "updateAttachment",
+                workitemURI=self.uri,
+                id=attachment_id,
+                fileName=file_name,
+                title=title,
+                content=f.read(),
             )
         self._reload_from_polarion()
 
@@ -624,9 +616,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
             return False
 
     def _get_configured_test_step_attrs(self, attr: str = "name") -> list[str]:
-        result = self._polarion._soap.call(
-            "TestManagement", "getTestStepsConfiguration", projectId=self._project.id
-        )
+        result = self._polarion._soap.call("TestManagement", "getTestStepsConfiguration", projectId=self._project.id)
         if isinstance(result, list):
             return [col.get(attr, "") if isinstance(col, dict) else str(col) for col in result]
         return []
@@ -659,9 +649,13 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
         """
         parent_uri = parent.uri if parent is not None else NIL
         self._polarion._soap.call(
-            "Tracker", "moveWorkItemToDocument",
-            workitemURI=self.uri, documentURI=document.uri,
-            parentURI=parent_uri, position=-1, retainFlow=False
+            "Tracker",
+            "moveWorkItemToDocument",
+            workitemURI=self.uri,
+            documentURI=document.uri,
+            parentURI=parent_uri,
+            position=-1,
+            retainFlow=False,
         )
 
     # --- Save ---

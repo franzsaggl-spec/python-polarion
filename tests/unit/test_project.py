@@ -1,7 +1,5 @@
 """Tests for Project-level methods with mocked SOAP layer (v2.0.0 API)."""
 
-from unittest.mock import MagicMock, patch
-
 from polarion.project import Project
 
 

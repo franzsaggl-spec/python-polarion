@@ -62,16 +62,17 @@ class Plan(PolarionObject):
         if new_plan_id is not None and new_plan_name is not None:
             parent_id = new_plan_parent.id if isinstance(new_plan_parent, Plan) else new_plan_parent
             self._uri = self._polarion._soap.call(
-                "Planning", "createPlan",
-                projectId=self._project.id, planName=new_plan_name,
-                planId=new_plan_id, parentPlanId=parent_id,
-                templateId=new_plan_template
+                "Planning",
+                "createPlan",
+                projectId=self._project.id,
+                planName=new_plan_name,
+                planId=new_plan_id,
+                parentPlanId=parent_id,
+                templateId=new_plan_template,
             )
 
         if self._uri is not None:
-            self._polarion_record = self._polarion._soap.call(
-                "Planning", "getPlanByUri", uri=self._uri
-            )
+            self._polarion_record = self._polarion._soap.call("Planning", "getPlanByUri", uri=self._uri)
 
         if self._id is not None and self._polarion_record is None:
             self._polarion_record = self._polarion._soap.call(
@@ -119,10 +120,7 @@ class Plan(PolarionObject):
             enum_list = allowed.get("EnumOptionId", [])
             if isinstance(enum_list, list):
                 wi_type = workitem.type.get("id") if isinstance(workitem.type, dict) else str(workitem.type)
-                if not any(
-                    (e.get("id") if isinstance(e, dict) else str(e)) == wi_type
-                    for e in enum_list
-                ):
+                if not any((e.get("id") if isinstance(e, dict) else str(e)) == wi_type for e in enum_list):
                     raise PolarionFieldError(f"Workitem type {wi_type} not allowed in this plan")
 
         self._polarion._soap.call("Planning", "addPlanItems", planURI=self.uri, itemURIs=[workitem.uri])
@@ -137,18 +135,12 @@ class Plan(PolarionObject):
 
     def add_allowed_type(self, type_name: str) -> None:
         """Add an allowed work item type."""
-        self._polarion._soap.call(
-            "Planning", "addPlanAllowedType",
-            planURI=self.uri, typeId={"id": type_name}
-        )
+        self._polarion._soap.call("Planning", "addPlanAllowedType", planURI=self.uri, typeId={"id": type_name})
         self._reload_from_polarion()
 
     def remove_allowed_type(self, type_name: str) -> None:
         """Remove an allowed work item type."""
-        self._polarion._soap.call(
-            "Planning", "removePlanAllowedType",
-            planURI=self.uri, typeId={"id": type_name}
-        )
+        self._polarion._soap.call("Planning", "removePlanAllowedType", planURI=self.uri, typeId={"id": type_name})
         self._reload_from_polarion()
 
     def get_workitems(self) -> list[Workitem]:

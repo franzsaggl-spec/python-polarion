@@ -9,7 +9,9 @@ def _make_record(mock_polarion, result_id=None, comment_content=None):
     """Build a Record from mocked data."""
     record_data = {
         "result": {"id": result_id} if result_id is not None else None,
-        "comment": {"content": comment_content, "type": "text/html", "contentLossy": False} if comment_content is not None else None,
+        "comment": {"content": comment_content, "type": "text/html", "contentLossy": False}
+        if comment_content is not None
+        else None,
         "executed": "2024-01-15",
         "executedByURI": None,
         "duration": 120.0,

@@ -47,9 +47,7 @@ class Testrun(CustomFields, Comments):
 
         if uri is not None:
             try:
-                self._polarion_data = self._polarion._soap.call(
-                    "TestManagement", "getTestRunByUri", uri=uri
-                )
+                self._polarion_data = self._polarion._soap.call("TestManagement", "getTestRunByUri", uri=uri)
             except Exception as e:
                 raise PolarionNotFoundError(f"Cannot find test run {uri}") from e
 
@@ -86,9 +84,7 @@ class Testrun(CustomFields, Comments):
                         self._record_dict[new_record.testcase_id] = new_record
 
     def _reload_from_polarion(self) -> None:
-        self._polarion_data = self._polarion._soap.call(
-            "TestManagement", "getTestRunByUri", uri=self.uri
-        )
+        self._polarion_data = self._polarion._soap.call("TestManagement", "getTestRunByUri", uri=self.uri)
         self._build_from_polarion()
         self._original_data = copy.deepcopy(self._polarion_data)
 
@@ -125,9 +121,7 @@ class Testrun(CustomFields, Comments):
 
     def delete_attachment(self, file_name: str) -> None:
         """Delete an attachment."""
-        self._polarion._soap.call(
-            "TestManagement", "deleteTestRunAttachment", testRunURI=self.uri, fileName=file_name
-        )
+        self._polarion._soap.call("TestManagement", "deleteTestRunAttachment", testRunURI=self.uri, fileName=file_name)
         self._reload_from_polarion()
 
     def add_attachment(self, file_path: str, title: str) -> None:
@@ -135,8 +129,12 @@ class Testrun(CustomFields, Comments):
         file_name = os.path.basename(file_path)
         with open(file_path, "rb") as f:
             self._polarion._soap.call(
-                "TestManagement", "addAttachmentToTestRun",
-                testRunURI=self.uri, fileName=file_name, title=title, content=f.read()
+                "TestManagement",
+                "addAttachmentToTestRun",
+                testRunURI=self.uri,
+                fileName=file_name,
+                title=title,
+                content=f.read(),
             )
         self._reload_from_polarion()
 
@@ -145,16 +143,19 @@ class Testrun(CustomFields, Comments):
         file_name = os.path.basename(file_path)
         with open(file_path, "rb") as f:
             self._polarion._soap.call(
-                "TestManagement", "updateTestRunAttachment",
-                testRunURI=self.uri, fileName=file_name, title=title, content=f.read()
+                "TestManagement",
+                "updateTestRunAttachment",
+                testRunURI=self.uri,
+                fileName=file_name,
+                title=title,
+                content=f.read(),
             )
         self._reload_from_polarion()
 
     def add_test_case(self, workitem: Workitem) -> None:
         """Add a test case work item to this run."""
         self._polarion._soap.call(
-            "TestManagement", "addTestRecordToTestRun",
-            testRunURI=self.uri, record={"testCaseURI": workitem.uri}
+            "TestManagement", "addTestRecordToTestRun", testRunURI=self.uri, record={"testCaseURI": workitem.uri}
         )
         self._reload_from_polarion()
 

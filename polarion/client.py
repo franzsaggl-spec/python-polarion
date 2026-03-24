@@ -20,7 +20,6 @@ import requests
 from .exceptions import (
     PolarionApiError,
     PolarionAuthError,
-    PolarionConnectionError,
 )
 from .project import Project
 from .soap.client import SoapClient
@@ -112,7 +111,8 @@ class Polarion:
 
         self._check_session()
         results = self._soap.call(
-            "Tracker", "queryWorkItems",
+            "Tracker",
+            "queryWorkItems",
             query=query,
             sort=sort,
             fields=["project.id"],
@@ -159,9 +159,7 @@ class Polarion:
         )
         if resp.ok:
             return resp.content
-        raise PolarionApiError(
-            f"Could not download from {url}. Got {resp.status_code}: {resp.reason}"
-        )
+        raise PolarionApiError(f"Could not download from {url}. Got {resp.status_code}: {resp.reason}")
 
     def has_service(self, name: str) -> bool:
         """Check if a WSDL service is available."""

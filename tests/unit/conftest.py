@@ -8,7 +8,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -34,8 +33,13 @@ def mock_polarion():
 
         # has_service returns True for standard services
         standard_services = {
-            "Session", "Tracker", "Project", "Builder",
-            "Planning", "TestManagement", "Security",
+            "Session",
+            "Tracker",
+            "Project",
+            "Builder",
+            "Planning",
+            "TestManagement",
+            "Security",
         }
         mock_soap.has_service.side_effect = lambda name: name in standard_services
 

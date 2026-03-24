@@ -104,10 +104,12 @@ class Project:
             field_list = ["id"]
 
         full_query = f"{query} AND project.id:{self.id}" if query else f"project.id:{self.id}"
-        return self.polarion._soap.call(
-            "Tracker", "queryWorkItemsLimited",
-            query=full_query, sort=order, fields=field_list, limit=limit
-        ) or []
+        return (
+            self.polarion._soap.call(
+                "Tracker", "queryWorkItemsLimited", query=full_query, sort=order, fields=field_list, limit=limit
+            )
+            or []
+        )
 
     def search_workitems_full(self, query: str = "", order: str = "Created", limit: int = 100) -> list[Workitem]:
         """Search for work items and return full Workitem objects.
@@ -149,11 +151,18 @@ class Project:
             field_list = ["id"]
 
         full_query = f"{query} AND project.id:{self.id}" if query else f"project.id:{self.id}"
-        return self.polarion._soap.call(
-            "Tracker", "queryWorkItemsInBaselineLimited",
-            query=full_query, sort=sort, baselineRevision=baseline_revision,
-            fields=field_list, limit=limit
-        ) or []
+        return (
+            self.polarion._soap.call(
+                "Tracker",
+                "queryWorkItemsInBaselineLimited",
+                query=full_query,
+                sort=sort,
+                baselineRevision=baseline_revision,
+                fields=field_list,
+                limit=limit,
+            )
+            or []
+        )
 
     def search_workitems_full_in_baseline(
         self,
@@ -167,9 +176,7 @@ class Project:
         if not isinstance(results, list):
             return []
         return [
-            Workitem(self.polarion, self, uri=r.get("uri") if isinstance(r, dict) else str(r))
-            for r in results
-            if r
+            Workitem(self.polarion, self, uri=r.get("uri") if isinstance(r, dict) else str(r)) for r in results if r
         ]
 
     # --- Enumerations ---
@@ -179,13 +186,9 @@ class Project:
 
         :param enum_name: Enum name (e.g. "requirement-status")
         """
-        result = self.polarion._soap.call(
-            "Tracker", "getAllEnumOptionsForId", projectId=self.id, enumId=enum_name
-        )
+        result = self.polarion._soap.call("Tracker", "getAllEnumOptionsForId", projectId=self.id, enumId=enum_name)
         if isinstance(result, list):
-            return list(dict.fromkeys(
-                a.get("id", "") if isinstance(a, dict) else str(a) for a in result
-            ))
+            return list(dict.fromkeys(a.get("id", "") if isinstance(a, dict) else str(a) for a in result))
         return []
 
     # --- Test Runs ---
@@ -207,8 +210,7 @@ class Project:
         """
         full_query = f"{query} AND project.id:{self.id}" if query else f"project.id:{self.id}"
         results = self.polarion._soap.call(
-            "TestManagement", "searchTestRunsLimited",
-            query=full_query, sort=order, limit=limit
+            "TestManagement", "searchTestRunsLimited", query=full_query, sort=order, limit=limit
         )
         if not isinstance(results, list):
             return []
@@ -222,8 +224,12 @@ class Project:
         :param template_id: Template test run ID
         """
         new_uri = self.polarion._soap.call(
-            "TestManagement", "createTestRunWithTitle",
-            projectId=self.id, testRunId=id, title=title, templateId=template_id
+            "TestManagement",
+            "createTestRunWithTitle",
+            projectId=self.id,
+            testRunId=id,
+            title=title,
+            templateId=template_id,
         )
         return create_from_uri(self.polarion, self, new_uri)
 
@@ -248,9 +254,12 @@ class Project:
         :param parent: Optional parent plan
         """
         return Plan(
-            self.polarion, self,
-            new_plan_name=name, new_plan_id=plan_id,
-            new_plan_template=template, new_plan_parent=parent,
+            self.polarion,
+            self,
+            new_plan_name=name,
+            new_plan_id=plan_id,
+            new_plan_template=template,
+            new_plan_parent=parent,
         )
 
     def search_plans(self, query: str = "", order: str = "Created", limit: int = 100) -> list[Any]:
@@ -261,10 +270,7 @@ class Project:
         :param limit: Maximum results
         """
         full_query = f"{query} AND project.id:{self.id}" if query else f"project.id:{self.id}"
-        return self.polarion._soap.call(
-            "Planning", "searchPlans",
-            query=full_query, sort=order, limit=limit
-        ) or []
+        return self.polarion._soap.call("Planning", "searchPlans", query=full_query, sort=order, limit=limit) or []
 
     def search_plans_full(self, query: str = "", order: str = "Created", limit: int = 100) -> list[Plan]:
         """Search for plans and return full Plan objects."""
@@ -300,10 +306,15 @@ class Project:
         type_ids = [{"id": t} for t in allowed_workitem_types]
         role_id = {"id": structure_link_role}
         uri = self.polarion._soap.call(
-            "Tracker", "createDocument",
-            projectId=self.id, location=location, documentName=name,
-            documentTitle=title, allowedWITypes=type_ids,
-            structureLinkRole=role_id, homePageContent=home_page_content
+            "Tracker",
+            "createDocument",
+            projectId=self.id,
+            location=location,
+            documentName=name,
+            documentTitle=title,
+            allowedWITypes=type_ids,
+            structureLinkRole=role_id,
+            homePageContent=home_page_content,
         )
         return Document(self.polarion, self, uri=uri)
 

@@ -48,9 +48,7 @@ def test_check_session_rechecks_after_interval(mock_polarion):
 
     mock_polarion._check_session()
 
-    mock_polarion._soap.call.assert_called_once_with(
-        "Project", "getUser", userId=mock_polarion.user
-    )
+    mock_polarion._soap.call.assert_called_once_with("Project", "getUser", userId=mock_polarion.user)
 
 
 # ------------------------------------------------------------------
@@ -111,9 +109,7 @@ def test_download_from_svn_uses_custom_svn_repo_url(mock_polarion):
         resp.content = b"custom-bytes"
         mock_req.get.return_value = resp
 
-        result = mock_polarion.download_from_svn(
-            "http://polarion.example.com/repo/project/path/file.txt"
-        )
+        result = mock_polarion.download_from_svn("http://polarion.example.com/repo/project/path/file.txt")
         assert result == b"custom-bytes"
 
         # Verify the URL was rewritten to the custom repo
@@ -137,7 +133,7 @@ def test_context_manager_calls_close():
             "http://polarion.example.com/polarion",
             "testuser",
             password="testpass",
-        ) as pol:
+        ) as _pol:
             pass
 
         mock_soap.logout.assert_called_once()
@@ -161,11 +157,7 @@ def test_no_hardcoded_credentials():
     # These are known default credentials that must not appear as literals
     for cred in ["aurora"]:
         pattern = rf"""password\s*=\s*['"]({cred})['"]"""
-        assert not re.search(pattern, source, re.IGNORECASE), (
-            f'Found hardcoded credential "{cred}" in client.py'
-        )
+        assert not re.search(pattern, source, re.IGNORECASE), f'Found hardcoded credential "{cred}" in client.py'
     # Also check there is no default password in the __init__ signature
     init_pattern = r"def __init__\(.*password\s*=\s*['\"]"
-    assert not re.search(init_pattern, source), (
-        "Found hardcoded default password in __init__ signature"
-    )
+    assert not re.search(init_pattern, source), "Found hardcoded default password in __init__ signature"

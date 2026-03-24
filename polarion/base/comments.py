@@ -43,13 +43,12 @@ class Comments(PolarionObject, ABC):
 
         try:
             self._polarion._soap.call(
-                "Tracker", "addComment",
+                "Tracker",
+                "addComment",
                 parentURI=parent,
                 title=title,
                 content=content,
             )
             self._reload_from_polarion()
         except Exception as e:
-            raise PolarionApiError(
-                f"Could not add comment: {e}. Adding comments might be disabled."
-            ) from e
+            raise PolarionApiError(f"Could not add comment: {e}. Adding comments might be disabled.") from e

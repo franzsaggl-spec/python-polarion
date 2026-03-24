@@ -1,7 +1,6 @@
 """Tests for Document with mocked SOAP layer (v2.0.0 API)."""
 
 import copy
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -95,8 +94,10 @@ def test_document_creation_from_location(mock_polarion, mock_project, mock_docum
 
     assert doc.title == "Test Document"
     mock_polarion._soap.call.assert_called_with(
-        "Tracker", "getModuleByLocation",
-        projectId=mock_project.id, locationPath="/TestFolder/TestDoc",
+        "Tracker",
+        "getModuleByLocation",
+        projectId=mock_project.id,
+        locationPath="/TestFolder/TestDoc",
     )
 
 
@@ -142,8 +143,11 @@ def test_get_workitem_uris(mock_polarion, mock_project, mock_document_data):
     result = doc.get_workitem_uris()
     assert result == expected_uris
     mock_polarion._soap.call.assert_called_once_with(
-        "Tracker", "getModuleWorkItemUris",
-        moduleURI=doc._uri, baselineRevision=None, deep=True,
+        "Tracker",
+        "getModuleWorkItemUris",
+        moduleURI=doc._uri,
+        baselineRevision=None,
+        deep=True,
     )
 
 

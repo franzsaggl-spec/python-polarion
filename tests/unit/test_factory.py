@@ -13,7 +13,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from polarion.exceptions import PolarionFieldError
-from polarion.factory import Creator, _parse_subterra_type, register_creator, create_from_uri, _creator_registry
+from polarion.factory import Creator, _creator_registry, _parse_subterra_type, create_from_uri, register_creator
 
 # ------------------------------------------------------------------
 # _parse_subterra_type
