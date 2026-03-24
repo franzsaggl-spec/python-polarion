@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import pytest
+import requests
 
 from polarion.v3.errors import AuthError, TransportError
 from polarion.v3.transport.soap import SoapTransport
@@ -78,7 +79,7 @@ def test_method_not_found(monkeypatch):
 def test_auth_failure_raises_auth_error(monkeypatch):
     class BadSessionService(DummyService):
         def logIn(self, user, password):
-            raise RuntimeError("bad creds")
+            raise requests.RequestException("bad creds")
 
     def fake_client(wsdl, transport):
         if wsdl.endswith("/Session?wsdl"):

@@ -7,6 +7,8 @@ from typing import Any
 
 import requests
 from zeep import Client
+from zeep.exceptions import Error as ZeepError
+from zeep.exceptions import Fault as ZeepFault
 from zeep.transports import Transport
 
 from ..errors import AuthError, TransportError
@@ -41,7 +43,7 @@ class SoapTransport:
         transport = Transport(session=self._session, timeout=self.timeout)
         try:
             client = Client(wsdl=self._service_wsdl(service), transport=transport)
-        except Exception as e:  # zeep has several exception types; normalize here.
+        except (ZeepError, requests.RequestException, OSError) as e:
             raise TransportError(f"Failed to initialize SOAP client for {service}: {e}") from e
 
         self._clients[service] = client
@@ -64,7 +66,7 @@ class SoapTransport:
                 session_client.service.logInWithToken(self.username, self.token)
             else:
                 session_client.service.logIn(self.username, self.password)
-        except Exception as e:
+        except (ZeepFault, ZeepError, requests.RequestException, OSError) as e:
             raise AuthError(f"Failed to authenticate SOAP session for user {self.username}: {e}") from e
 
         self._authenticated = True
@@ -77,7 +79,7 @@ class SoapTransport:
             raise TransportError(f"SOAP method not found: {service}.{method}")
         try:
             return fn(**kwargs)
-        except Exception as e:
+        except (ZeepFault, ZeepError, requests.RequestException, OSError) as e:
             raise TransportError(f"SOAP call failed: {service}.{method}: {e}") from e
 
     def close(self) -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ..errors import NotFoundError, ValidationError
 from ..parser.document import parse_document, parse_document_list
 from ..parser.workitem import parse_workitem_detail, parse_workitem_summary_list
 from ..types.common import Page
@@ -15,7 +16,7 @@ class DocumentsService(ServiceBase):
         elif location:
             raw = self.transport.call("Tracker", "getModuleByLocation", projectId=project_id, location=location)
         else:
-            raise ValueError("Either uri or location is required")
+            raise ValidationError("Either uri or location is required")
         return parse_document(raw)
 
     def create(self, project_id: str, payload: DocumentCreate) -> Document:
@@ -63,7 +64,7 @@ class DocumentsService(ServiceBase):
     def top_level_workitem(self, project_id: str, document_uri: str) -> WorkitemDetail:
         page = self.workitems(project_id, document_uri)
         if not page.items:
-            raise ValueError("No workitems found in document")
+            raise NotFoundError("No workitems found in document")
         # Try detailed lookup by id for canonical detail payload.
         first = page.items[0]
         raw = self.transport.call("Tracker", "getWorkItemById", projectId=project_id, id=first.id)
