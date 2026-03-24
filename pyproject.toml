@@ -34,8 +34,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/jesper-raemaekers/python-polarion"
-"Bug Tracker" = "https://github.com/jesper-raemaekers/python-polarion/issues"
+Homepage = "https://github.com/saggl/python-polarion"
+"Bug Tracker" = "https://github.com/saggl/python-polarion/issues"
 Documentation = "https://python-polarion.readthedocs.io/"
 
 [project.optional-dependencies]
