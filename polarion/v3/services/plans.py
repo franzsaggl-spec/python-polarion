@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ..parser.plan import parse_plan, parse_plan_list
 from ..types.common import Page
 from ..types.plan import Plan, PlanCreate
 from ..types.workitem import WorkitemSummary
@@ -8,16 +9,27 @@ from .base import ServiceBase
 
 class PlansService(ServiceBase):
     def get(self, project_id: str, plan_id: str) -> Plan:
-        raise NotImplementedError
+        raw = self.transport.call("Planning", "getPlanById", projectId=project_id, id=plan_id)
+        return parse_plan(raw)
 
     def create(self, project_id: str, payload: PlanCreate) -> Plan:
-        raise NotImplementedError
+        raw = self.transport.call(
+            "Planning",
+            "createPlan",
+            projectId=project_id,
+            name=payload.name,
+            id=payload.plan_id,
+            template=payload.template,
+            parentId=payload.parent_id,
+        )
+        return parse_plan(raw)
 
     def update(self, plan: Plan) -> Plan:
-        raise NotImplementedError
+        raw = self.transport.call("Planning", "updatePlan", uri=plan.uri, name=plan.name)
+        return parse_plan(raw)
 
     def delete(self, project_id: str, plan_id: str) -> None:
-        raise NotImplementedError
+        self.transport.call("Planning", "deletePlan", projectId=project_id, id=plan_id)
 
     def search(
         self,
@@ -28,13 +40,18 @@ class PlansService(ServiceBase):
         offset: int = 0,
         limit: int = 100,
     ) -> Page[Plan]:
-        raise NotImplementedError
+        raw = self.transport.call("Planning", "searchPlans", projectId=project_id, query=query or "", sort=sort)
+        items = parse_plan_list(raw)
+        sliced = items[offset : offset + limit]
+        return Page(
+            items=sliced, total=len(items), offset=offset, limit=limit, has_more=offset + len(sliced) < len(items)
+        )
 
     def workitems(self, project_id: str, plan_id: str, *, offset: int = 0, limit: int = 200) -> Page[WorkitemSummary]:
         raise NotImplementedError
 
     def add_workitem(self, project_id: str, plan_id: str, workitem_id: str) -> None:
-        raise NotImplementedError
+        self.transport.call("Planning", "addPlanItems", projectId=project_id, planId=plan_id, itemIds=[workitem_id])
 
     def remove_workitem(self, project_id: str, plan_id: str, workitem_id: str) -> None:
-        raise NotImplementedError
+        self.transport.call("Planning", "removePlanItems", projectId=project_id, planId=plan_id, itemIds=[workitem_id])
