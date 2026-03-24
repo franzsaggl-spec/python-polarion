@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ..parser.plan import parse_plan, parse_plan_list
+from ..parser.workitem import parse_workitem_summary_list
 from ..types.common import Page
 from ..types.plan import Plan, PlanCreate
 from ..types.workitem import WorkitemSummary
@@ -48,7 +49,19 @@ class PlansService(ServiceBase):
         )
 
     def workitems(self, project_id: str, plan_id: str, *, offset: int = 0, limit: int = 200) -> Page[WorkitemSummary]:
-        raise NotImplementedError
+        # Query by plan id relation; backend specifics may vary but this keeps v3 contract functional.
+        raw = self.transport.call(
+            "Tracker",
+            "queryWorkItems",
+            query=f"project.id:{project_id} AND plan.id:{plan_id}",
+            sort="id",
+            fields=["id", "title", "type", "status", "priority"],
+        )
+        items = parse_workitem_summary_list(raw)
+        sliced = items[offset : offset + limit]
+        return Page(
+            items=sliced, total=len(items), offset=offset, limit=limit, has_more=offset + len(sliced) < len(items)
+        )
 
     def add_workitem(self, project_id: str, plan_id: str, workitem_id: str) -> None:
         self.transport.call("Planning", "addPlanItems", projectId=project_id, planId=plan_id, itemIds=[workitem_id])

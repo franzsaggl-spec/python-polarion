@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ..parser.document import parse_document, parse_document_list
+from ..parser.workitem import parse_workitem_detail, parse_workitem_summary_list
 from ..types.common import Page
 from ..types.document import Document, DocumentCreate
 from ..types.workitem import WorkitemDetail, WorkitemSummary
@@ -55,16 +56,47 @@ class DocumentsService(ServiceBase):
         )
 
     def workitems(self, project_id: str, document_uri: str) -> Page[WorkitemSummary]:
-        raise NotImplementedError
+        raw = self.transport.call("Tracker", "getModuleWorkItems", projectId=project_id, uri=document_uri)
+        items = parse_workitem_summary_list(raw)
+        return Page(items=items, total=len(items), offset=0, limit=len(items), has_more=False)
 
     def top_level_workitem(self, project_id: str, document_uri: str) -> WorkitemDetail:
-        raise NotImplementedError
+        page = self.workitems(project_id, document_uri)
+        if not page.items:
+            raise ValueError("No workitems found in document")
+        # Try detailed lookup by id for canonical detail payload.
+        first = page.items[0]
+        raw = self.transport.call("Tracker", "getWorkItemById", projectId=project_id, id=first.id)
+        return parse_workitem_detail(raw)
 
     def children(self, project_id: str, document_uri: str, workitem_id: str) -> list[WorkitemDetail]:
-        raise NotImplementedError
+        page = self.workitems(project_id, document_uri)
+        details: dict[str, WorkitemDetail] = {}
+        for wi in page.items:
+            raw = self.transport.call("Tracker", "getWorkItemById", projectId=project_id, id=wi.id)
+            details[wi.id] = parse_workitem_detail(raw)
+
+        result: list[WorkitemDetail] = []
+        for wi in details.values():
+            for link in wi.links:
+                target_id = link.target_id or link.target_uri.split("/")[-1]
+                if wi.id == workitem_id and target_id in details:
+                    result.append(details[target_id])
+        return result
 
     def parent(self, project_id: str, document_uri: str, workitem_id: str) -> WorkitemDetail | None:
-        raise NotImplementedError
+        page = self.workitems(project_id, document_uri)
+        details: dict[str, WorkitemDetail] = {}
+        for wi in page.items:
+            raw = self.transport.call("Tracker", "getWorkItemById", projectId=project_id, id=wi.id)
+            details[wi.id] = parse_workitem_detail(raw)
+
+        for wi in details.values():
+            for link in wi.links:
+                target_id = link.target_id or link.target_uri.split("/")[-1]
+                if target_id == workitem_id:
+                    return wi
+        return None
 
     def export_pdf(self, project_id: str, document_uri: str) -> bytes:
         raw = self.transport.call("Tracker", "exportDocumentToPDF", projectId=project_id, uri=document_uri)
