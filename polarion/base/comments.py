@@ -4,12 +4,11 @@ from abc import ABC
 from typing import Optional
 
 from polarion.base.polarion_object import PolarionObject
-from polarion.exceptions import PolarionFieldError, PolarionApiError
+from polarion.exceptions import PolarionApiError, PolarionFieldError
 
 
 class Comments(PolarionObject, ABC):
-
-    def addComment(self, title: Optional[str], comment: str, parent: Optional[str] = None, type: str = 'html') -> None:
+    def addComment(self, title: Optional[str], comment: str, parent: Optional[str] = None, type: str = "html") -> None:
         """
         Adds a comment to the workitem.
 
@@ -19,21 +18,19 @@ class Comments(PolarionObject, ABC):
         :param comment: The comment, may contain html
         :param parent: A parent comment, if none provided it's a root comment.
         """
-        service = self._polarion.getService('Tracker')
-        if type not in ('html', 'plain'):
-            raise PolarionFieldError('Type must be either html or plain.')
-        if hasattr(service, 'addComment'):
+        service = self._polarion.getService("Tracker")
+        if type not in ("html", "plain"):
+            raise PolarionFieldError("Type must be either html or plain.")
+        if hasattr(service, "addComment"):
             if parent is None:
                 parent = self.uri
             else:
                 # force title to be empty, not allowed for reply comments
                 title = None
-            content = {
-                'type': f'text/{type}',
-                'content': comment,
-                'contentLossy': False
-            }
+            content = {"type": f"text/{type}", "content": comment, "contentLossy": False}
             service.addComment(parent, title, content)
             self._reloadFromPolarion()
         else:
-            raise PolarionApiError("addComment binding not found in Tracker Service. Adding comments might be disabled.")
+            raise PolarionApiError(
+                "addComment binding not found in Tracker Service. Adding comments might be disabled."
+            )

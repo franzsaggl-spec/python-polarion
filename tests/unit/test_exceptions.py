@@ -3,15 +3,14 @@
 import pytest
 
 from polarion.exceptions import (
-    PolarionError,
-    PolarionAuthError,
-    PolarionNotFoundError,
-    PolarionConnectionError,
-    PolarionConfigError,
     PolarionApiError,
+    PolarionAuthError,
+    PolarionConfigError,
+    PolarionConnectionError,
+    PolarionError,
     PolarionFieldError,
+    PolarionNotFoundError,
 )
-
 
 ALL_SUBTYPES = [
     PolarionAuthError,
@@ -26,6 +25,7 @@ ALL_SUBTYPES = [
 # ------------------------------------------------------------------
 # Hierarchy checks
 # ------------------------------------------------------------------
+
 
 def test_polarion_error_is_exception():
     assert issubclass(PolarionError, Exception)
@@ -45,6 +45,7 @@ def test_all_subtypes_inherit_from_exception(exc_cls):
 # Instantiation with message
 # ------------------------------------------------------------------
 
+
 def test_polarion_error_with_message():
     err = PolarionError("base error")
     assert str(err) == "base error"
@@ -61,6 +62,7 @@ def test_subtype_with_message(exc_cls):
 # Catching with base class
 # ------------------------------------------------------------------
 
+
 @pytest.mark.parametrize("exc_cls", ALL_SUBTYPES)
 def test_except_polarion_error_catches_subtype(exc_cls):
     with pytest.raises(PolarionError):
@@ -76,6 +78,7 @@ def test_except_polarion_error_catches_base():
 # Each exception class exists as a distinct type
 # ------------------------------------------------------------------
 
+
 def test_exception_classes_are_distinct():
     classes = [PolarionError] + ALL_SUBTYPES
     assert len(set(classes)) == len(classes)
@@ -84,6 +87,7 @@ def test_exception_classes_are_distinct():
 # ------------------------------------------------------------------
 # Exception args tuple
 # ------------------------------------------------------------------
+
 
 @pytest.mark.parametrize("exc_cls", [PolarionError] + ALL_SUBTYPES)
 def test_exception_args(exc_cls):

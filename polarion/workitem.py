@@ -3,23 +3,23 @@ from __future__ import annotations
 import copy
 import logging
 import os
-from datetime import datetime, date
+from datetime import date, datetime
 from enum import Enum
-from typing import Any, Optional, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from zeep import xsd
 
 from .base.comments import Comments
 from .base.custom_fields import CustomFields
 from .base.polarion_object import PostponeSaveMixin
-from .exceptions import PolarionNotFoundError, PolarionFieldError, PolarionApiError
+from .exceptions import PolarionApiError, PolarionFieldError, PolarionNotFoundError
 from .factory import Creator
 from .user import User
 
 if TYPE_CHECKING:
+    from .document import Document
     from .polarion import Polarion
     from .project import Project
-    from .document import Document
 
 logger = logging.getLogger(__name__)
 
@@ -35,58 +35,76 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
     :param polarion_workitem: Polarion workitem content
 
     """
-    _default_summary_fields = ['id', 'title', 'type', 'status']
-    _field_accessors = {'id': lambda self: self._id}
+
+    _default_summary_fields = ["id", "title", "type", "status"]
+    _field_accessors = {"id": lambda self: self._id}
 
     class HyperlinkRoles(Enum):
         """
         Hyperlink reference type enum
         """
-        INTERNAL_REF = 'internal reference'
-        EXTERNAL_REF = 'external reference'
 
-    def __init__(self, polarion: Polarion, project: Project, id: Optional[str] = None, uri: Optional[str] = None, new_workitem_type: Optional[str] = None, new_workitem_fields: Optional[dict[str, Any]] = None, polarion_workitem: Optional[Any] = None) -> None:
+        INTERNAL_REF = "internal reference"
+        EXTERNAL_REF = "external reference"
+
+    def __init__(
+        self,
+        polarion: Polarion,
+        project: Project,
+        id: Optional[str] = None,
+        uri: Optional[str] = None,
+        new_workitem_type: Optional[str] = None,
+        new_workitem_fields: Optional[dict[str, Any]] = None,
+        polarion_workitem: Optional[Any] = None,
+    ) -> None:
         super().__init__(polarion, project, id, uri)
         self._polarion = polarion
         self._project = project
         self._id = id
         self._uri = uri
-        service = self._polarion.getService('Tracker')
+        service = self._polarion.getService("Tracker")
 
         if self._uri:
             try:
                 self._polarion_item = service.getWorkItemByUri(self._uri)
                 self._id = self._polarion_item.id
             except Exception as e:
-                raise PolarionNotFoundError(
-                    f'Cannot find workitem {self._id} in project {self._project.id}') from e
+                raise PolarionNotFoundError(f"Cannot find workitem {self._id} in project {self._project.id}") from e
         elif id is not None:
             try:
-                self._polarion_item = service.getWorkItemById(
-                    self._project.id, self._id)
+                self._polarion_item = service.getWorkItemById(self._project.id, self._id)
             except Exception as e:
-                raise PolarionNotFoundError(
-                    f'Cannot find workitem {self._id} in project {self._project.id}') from e
+                raise PolarionNotFoundError(f"Cannot find workitem {self._id} in project {self._project.id}") from e
         elif new_workitem_type is not None:
             # construct empty workitem
             self._polarion_item = self._polarion.WorkItemType(
-                type=self._polarion.EnumOptionIdType(id=new_workitem_type))
+                type=self._polarion.EnumOptionIdType(id=new_workitem_type)
+            )
             self._polarion_item.project = self._project.polarion_data
 
             # get the required field for a new item
-            required_features = service.getInitialWorkflowActionForProjectAndType(self._project.id, self._polarion.EnumOptionIdType(id=new_workitem_type))
+            required_features = service.getInitialWorkflowActionForProjectAndType(
+                self._project.id, self._polarion.EnumOptionIdType(id=new_workitem_type)
+            )
             if required_features.requiredFeatures is not None:
                 # if there are any, go and check if they are all supplied
-                if new_workitem_fields is None or not set(required_features.requiredFeatures.item) <= new_workitem_fields.keys():
+                if (
+                    new_workitem_fields is None
+                    or not set(required_features.requiredFeatures.item) <= new_workitem_fields.keys()
+                ):
                     # let the user know with a better error
-                    raise PolarionFieldError(f'New workitem required field: {required_features.requiredFeatures.item} to be filled in using new_workitem_fields')
+                    raise PolarionFieldError(
+                        f"New workitem required field: {required_features.requiredFeatures.item} to be filled in using new_workitem_fields"
+                    )
 
             if new_workitem_fields is not None:
                 for new_field in new_workitem_fields:
                     if new_field in self._polarion_item:
                         self._polarion_item[new_field] = new_workitem_fields[new_field]
                     else:
-                        raise PolarionFieldError(f'{new_field} in new_workitem_fields is not recognised as a workitem field')
+                        raise PolarionFieldError(
+                            f"{new_field} in new_workitem_fields is not recognised as a workitem field"
+                        )
 
             # and create it
             new_uri = service.createWorkItem(self._polarion_item)
@@ -98,7 +116,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
             self._polarion_item = polarion_workitem
             self._id = self._polarion_item.id
         else:
-            raise PolarionFieldError('No id, uri, polarion workitem or new workitem type specified!')
+            raise PolarionFieldError("No id, uri, polarion workitem or new workitem type specified!")
 
         self._buildWorkitemFromPolarion()
 
@@ -110,10 +128,10 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
             try:
                 # check if any of the field has the test steps
                 if self._hasTestStepField():
-                    service_test = self._polarion.getService('TestManagement')
+                    service_test = self._polarion.getService("TestManagement")
                     self._polarion_test_steps = service_test.getTestSteps(self.uri)
             except Exception as e:
-                logger.warning('Could not fetch test steps for workitem %s: %s', self._id, e)
+                logger.warning("Could not fetch test steps for workitem %s: %s", self._id, e)
             self._parsed_test_steps = None
             if self._polarion_test_steps is not None:
                 if self._polarion_test_steps.keys is not None and self._polarion_test_steps.steps:
@@ -122,9 +140,10 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
                     for row in self._polarion_test_steps.steps.TestStep:
                         if row.values is not None:
                             self._parsed_test_steps.append(
-                                {columns[i]: t.content for i, t in enumerate(row.values.Text)})
+                                {columns[i]: t.content for i, t in enumerate(row.values.Text)}
+                            )
         else:
-            raise PolarionNotFoundError('Workitem not retrieved from Polarion')
+            raise PolarionNotFoundError("Workitem not retrieved from Polarion")
 
     def getAuthor(self) -> Optional[User]:
         """
@@ -143,7 +162,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
 
         :param user: The user object to remove
         """
-        service = self._polarion.getService('Tracker')
+        service = self._polarion.getService("Tracker")
         service.removeApprovee(self.uri, user.id)
         self._reloadFromPolarion()
 
@@ -154,7 +173,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         :param user: The user object to add
         :param remove_others: Set to True to make the new user the only approver user.
         """
-        service = self._polarion.getService('Tracker')
+        service = self._polarion.getService("Tracker")
 
         if remove_others:
             current_users = self.getApproverUsers()
@@ -192,7 +211,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
 
         :param user: The user object to remove
         """
-        service = self._polarion.getService('Tracker')
+        service = self._polarion.getService("Tracker")
         service.removeAssignee(self.uri, user.id)
         self._reloadFromPolarion()
 
@@ -203,7 +222,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         :param user: The user object to add
         :param remove_others: Set to True to make the new user the only assigned user.
         """
-        service = self._polarion.getService('Tracker')
+        service = self._polarion.getService("Tracker")
 
         if remove_others:
             current_users = self.getAssignedUsers()
@@ -215,22 +234,22 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
 
     def _getEnum(self, suffix: str) -> list[str]:
         try:
-            return self._project.getEnum(f'{self.type.id}-{suffix}')
+            return self._project.getEnum(f"{self.type.id}-{suffix}")
         except Exception as e:
-            logger.warning('Could not get %s enum: %s', suffix, e)
+            logger.warning("Could not get %s enum: %s", suffix, e)
             return []
 
     def getStatusEnum(self) -> list[str]:
         """Get the status enum of this workitem type. Returns empty list on failure."""
-        return self._getEnum('status')
+        return self._getEnum("status")
 
     def getResolutionEnum(self) -> list[str]:
         """Get the resolution enum of this workitem type. Returns empty list on failure."""
-        return self._getEnum('resolution')
+        return self._getEnum("resolution")
 
     def getSeverityEnum(self) -> list[str]:
         """Get the severity enum of this workitem type. Returns empty list on failure."""
-        return self._getEnum('severity')
+        return self._getEnum("severity")
 
     def getAllowedCustomKeys(self) -> list[str]:
         """
@@ -240,10 +259,10 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         :rtype: string[]
         """
         try:
-            service = self._polarion.getService('Tracker')
+            service = self._polarion.getService("Tracker")
             return service.getCustomFieldKeys(self.uri)
         except Exception as e:
-            logger.warning('Could not get custom field keys: %s', e)
+            logger.warning("Could not get custom field keys: %s", e)
             return []
 
     def isCustomFieldAllowed(self, key: str) -> bool:
@@ -262,8 +281,8 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         :return: An array of string of the statusses
         :rtype: string[]
         """
-        service = self._polarion.getService('Tracker')
-        return [s.id for s in service.getAvailableEnumOptionIdsForId(self.uri, 'status')]
+        service = self._polarion.getService("Tracker")
+        return [s.id for s in service.getAvailableEnumOptionIdsForId(self.uri, "status")]
 
     def getAvailableActionsDetails(self) -> list[Any]:
         """
@@ -272,7 +291,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         :return: An array of dictionaries of the actions
         :rtype: dict[]
         """
-        service = self._polarion.getService('Tracker')
+        service = self._polarion.getService("Tracker")
         return list(service.getAvailableActions(self.uri))
 
     def getAvailableActions(self) -> list[str]:
@@ -282,7 +301,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         :return: An array of strings of the actions
         :rtype: string[]
         """
-        service = self._polarion.getService('Tracker')
+        service = self._polarion.getService("Tracker")
         return [a.nativeActionId for a in service.getAvailableActions(self.uri)]
 
     def performAction(self, action_name: str) -> None:
@@ -292,7 +311,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         :param action_name: string containing the action name
         """
         # get id from action name
-        service = self._polarion.getService('Tracker')
+        service = self._polarion.getService("Tracker")
         av_actions = service.getAvailableActions(self.uri)
         for action in av_actions:
             if action.nativeActionId == action_name or action.actionName == action_name:
@@ -304,7 +323,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
 
         :param actionId: number for the action to perform
         """
-        service = self._polarion.getService('Tracker')
+        service = self._polarion.getService("Tracker")
         service.performWorkflowAction(self.uri, actionId)
 
     def setStatus(self, status: str) -> None:
@@ -334,8 +353,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
 
         :param description: the description
         """
-        self.description = self._polarion.TextType(
-            content=description, type='text/html', contentLossy=False)
+        self.description = self._polarion.TextType(content=description, type="text/html", contentLossy=False)
         self.save()
 
     def setResolution(self, resolution: str) -> None:
@@ -348,8 +366,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         if self.resolution is not None:
             self.resolution.id = resolution
         else:
-            self.resolution = self._polarion.EnumOptionIdType(
-                id=resolution)
+            self.resolution = self._polarion.EnumOptionIdType(id=resolution)
         self.save()
 
     def hasTestSteps(self) -> bool:
@@ -368,10 +385,10 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         :param url: The URL to add
         :param hyperlink_type: Select internal or external hyperlink. Can be a string for custom link types.
         """
-        service = self._polarion.getService('Tracker')
+        service = self._polarion.getService("Tracker")
         if isinstance(hyperlink_type, Enum):  # convert Enum to str
             hyperlink_type = hyperlink_type.value
-        service.addHyperlink(self.uri, url, {'id': hyperlink_type})
+        service.addHyperlink(self.uri, url, {"id": hyperlink_type})
         self._reloadFromPolarion()
 
     def removeHyperlink(self, url: str) -> None:
@@ -380,20 +397,20 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         @param url: url to remove
         @return:
         """
-        service = self._polarion.getService('Tracker')
+        service = self._polarion.getService("Tracker")
         service.removeHyperlink(self.uri, url)
         self._reloadFromPolarion()
 
     def addLinkedItem(self, workitem: Workitem, link_type: str) -> None:
         """
-            Add a link to a workitem
+        Add a link to a workitem
 
-            :param workitem: A workitem
-            :param link_type: The link type
+        :param workitem: A workitem
+        :param link_type: The link type
         """
 
-        service = self._polarion.getService('Tracker')
-        service.addLinkedItem(self.uri, workitem.uri, role={'id': link_type})
+        service = self._polarion.getService("Tracker")
+        service.addLinkedItem(self.uri, workitem.uri, role={"id": link_type})
         self._reloadFromPolarion()
         workitem._reloadFromPolarion()
 
@@ -406,9 +423,9 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         :param role: the role to remove
         :return: None
         """
-        service = self._polarion.getService('Tracker')
+        service = self._polarion.getService("Tracker")
         if role is not None:
-            service.removeLinkedItem(self.uri, workitem.uri, role={'id': role})
+            service.removeLinkedItem(self.uri, workitem.uri, role={"id": role})
         else:
             if self.linkedWorkItems is not None:
                 for linked_item in self.linkedWorkItems.LinkedWorkItem:
@@ -431,11 +448,15 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         if self.linkedWorkItems is not None:
             for linked_item in self.linkedWorkItems.LinkedWorkItem:
                 if linked_item.role is not None:
-                    linked_items.append((linked_item.role.id, Workitem(self._polarion, self._project, uri=linked_item.workItemURI)))
+                    linked_items.append(
+                        (linked_item.role.id, Workitem(self._polarion, self._project, uri=linked_item.workItemURI))
+                    )
         if self.linkedWorkItemsDerived is not None:
             for linked_item in self.linkedWorkItemsDerived.LinkedWorkItem:
                 if linked_item.role is not None:
-                    linked_items.append((linked_item.role.id, Workitem(self._polarion, self._project, uri=linked_item.workItemURI)))
+                    linked_items.append(
+                        (linked_item.role.id, Workitem(self._polarion, self._project, uri=linked_item.workItemURI))
+                    )
         return linked_items
 
     def getLinkedItem(self) -> list[Workitem]:
@@ -464,7 +485,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         :return: list of bytes
         :rtype: bytes[]
         """
-        service = self._polarion.getService('Tracker')
+        service = self._polarion.getService("Tracker")
         return service.getAttachment(self.uri, id)
 
     def saveAttachmentAsFile(self, id: str, file_path: str) -> None:
@@ -484,7 +505,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
 
         :param id: The attachment id
         """
-        service = self._polarion.getService('Tracker')
+        service = self._polarion.getService("Tracker")
         service.deleteAttachment(self.uri, id)
         self._reloadFromPolarion()
 
@@ -495,7 +516,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         :param file_path: Source file to upload
         :param title: The title of the attachment
         """
-        service = self._polarion.getService('Tracker')
+        service = self._polarion.getService("Tracker")
         file_name = os.path.basename(file_path)
         with open(file_path, "rb") as file_content:
             service.createAttachment(self.uri, file_name, title, file_content.read())
@@ -509,7 +530,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         :param file_path: Source file to upload
         :param title: The title of the attachment
         """
-        service = self._polarion.getService('Tracker')
+        service = self._polarion.getService("Tracker")
         file_name = os.path.basename(file_path)
         with open(file_path, "rb") as file_content:
             service.updateAttachment(self.uri, id, file_name, title, file_content.read())
@@ -520,7 +541,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         Delete the work item in polarion
         This does not remove workitem references from documents
         """
-        service = self._polarion.getService('Tracker')
+        service = self._polarion.getService("Tracker")
         service.deleteWorkItem(self.uri)
 
     def moveToDocument(self, document: Document, parent: Optional[Workitem]) -> None:
@@ -530,9 +551,10 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         :param document: Target document
         :param parent: Parent workitem, None if it shall be placed as top item
         """
-        service = self._polarion.getService('Tracker')
-        service.moveWorkItemToDocument(self.uri, document.uri, parent.uri if parent is not None else xsd.const.Nil, -1,
-                                       False)
+        service = self._polarion.getService("Tracker")
+        service.moveWorkItemToDocument(
+            self.uri, document.uri, parent.uri if parent is not None else xsd.const.Nil, -1, False
+        )
 
     def addTestStep(self, *args: str) -> None:
         """
@@ -542,7 +564,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         """
         # check test step custom field
         if not self._hasTestStepField():
-            raise PolarionFieldError('Cannot add test steps to work item that does not have the custom field')
+            raise PolarionFieldError("Cannot add test steps to work item that does not have the custom field")
 
         # if the keys do not exist, add them now
         if self._polarion_test_steps.keys is None:
@@ -553,20 +575,22 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
 
         # check correct argument length
         if len(args) != len(self._polarion_test_steps.keys.EnumOptionId):
-            raise PolarionFieldError(f'Incorrect number of argument. Test step requires {len(self._polarion_test_steps.keys.EnumOptionId)} arguments.')
+            raise PolarionFieldError(
+                f"Incorrect number of argument. Test step requires {len(self._polarion_test_steps.keys.EnumOptionId)} arguments."
+            )
 
         # check for any steps, if not present create array here
         if self._polarion_test_steps.steps is None:
             self._polarion_test_steps.steps = self._polarion.ArrayOfTestStepType()
 
         # prepare structure for Polarion
-        step_text = [self._polarion.TextType(content=arg, type='text/html', contentLossy=False) for arg in args]
+        step_text = [self._polarion.TextType(content=arg, type="text/html", contentLossy=False) for arg in args]
         new_test_step = self._polarion.TestStepType(self._polarion.ArrayOfTextType(step_text))
 
         self._polarion_test_steps.steps.TestStep.append(new_test_step)
         self._testStepNoneCheck()
 
-        service = self._polarion.getService('TestManagement')
+        service = self._polarion.getService("TestManagement")
         service.setTestSteps(self.uri, self._polarion_test_steps.steps.TestStep)
         self._reloadFromPolarion()
 
@@ -578,10 +602,12 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         """
         # check test step custom field
         if not self._hasTestStepField():
-            raise PolarionFieldError('Cannot remove test steps from work item that does not have the custom field')
+            raise PolarionFieldError("Cannot remove test steps from work item that does not have the custom field")
 
         if index >= len(self._polarion_test_steps.steps.TestStep):
-            raise ValueError(f'Index should be in range of test step length of {len(self._polarion_test_steps.steps.TestStep)}')
+            raise ValueError(
+                f"Index should be in range of test step length of {len(self._polarion_test_steps.steps.TestStep)}"
+            )
 
         # remove from array
         self._polarion_test_steps.steps.TestStep.pop(index)
@@ -590,7 +616,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         self._testStepNoneCheck()
 
         # save it to the service
-        service = self._polarion.getService('TestManagement')
+        service = self._polarion.getService("TestManagement")
         service.setTestSteps(self.uri, self._polarion_test_steps.steps.TestStep)
 
         self._reloadFromPolarion()
@@ -604,27 +630,30 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         """
         # check test step custom field
         if not self._hasTestStepField():
-            raise PolarionFieldError('Cannot update test steps on work item that does not have the custom field')
+            raise PolarionFieldError("Cannot update test steps on work item that does not have the custom field")
 
         # Verify validity of index
         if not isinstance(index, int):
-            raise PolarionFieldError('First argument of updateTestStep must be an integer.')
+            raise PolarionFieldError("First argument of updateTestStep must be an integer.")
         if index >= len(self._polarion_test_steps.steps.TestStep):
-            raise ValueError(f'Index should be in range of test step length of {len(self._polarion_test_steps.steps.TestStep)}')
+            raise ValueError(
+                f"Index should be in range of test step length of {len(self._polarion_test_steps.steps.TestStep)}"
+            )
 
             # check correct argument length
         if len(args) != len(self._polarion_test_steps.keys.EnumOptionId):
             raise PolarionFieldError(
-                f'Incorrect number of argument. Test step requires {len(self._polarion_test_steps.keys.EnumOptionId)} arguments.')
+                f"Incorrect number of argument. Test step requires {len(self._polarion_test_steps.keys.EnumOptionId)} arguments."
+            )
 
         # prepare structure for Polarion
-        step_text = [self._polarion.TextType(content=arg, type='text/html', contentLossy=False) for arg in args]
+        step_text = [self._polarion.TextType(content=arg, type="text/html", contentLossy=False) for arg in args]
         new_test_step = self._polarion.TestStepType(self._polarion.ArrayOfTextType(step_text))
 
         self._polarion_test_steps.steps.TestStep[index] = new_test_step
         self._testStepNoneCheck()
 
-        service = self._polarion.getService('TestManagement')
+        service = self._polarion.getService("TestManagement")
         service.setTestSteps(self.uri, self._polarion_test_steps.steps.TestStep)
         self._reloadFromPolarion()
 
@@ -635,7 +664,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         """
         # check test step custom field
         if not self._hasTestStepField():
-            raise PolarionFieldError('Work item does not have test step custom field')
+            raise PolarionFieldError("Work item does not have test step custom field")
 
         return self._getConfiguredTestStepColumns()
 
@@ -645,7 +674,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         @return: List of strings containing the header IDs.
         """
         if not self._hasTestStepField():
-            raise PolarionFieldError('Work item does not have test step custom field')
+            raise PolarionFieldError("Work item does not have test step custom field")
 
         return self._getConfiguredTestStepColumnIDs()
 
@@ -661,23 +690,22 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         Return the revision number of the work item.
         @return: Integer with revision number
         """
-        service = self._polarion.getService('Tracker')
+        service = self._polarion.getService("Tracker")
         try:
             history: list = service.getRevisions(self.uri)
             return int(history[-1])
         except Exception as e:
             raise PolarionApiError("Could not get Revision!") from e
 
-
-    def _getConfiguredTestStepAttrs(self, attr: str = 'name') -> list[str]:
-        service = self._polarion.getService('TestManagement')
+    def _getConfiguredTestStepAttrs(self, attr: str = "name") -> list[str]:
+        service = self._polarion.getService("TestManagement")
         return [getattr(col, attr) for col in service.getTestStepsConfiguration(self._project.id)]
 
     def _getConfiguredTestStepColumns(self):
-        return self._getConfiguredTestStepAttrs('name')
+        return self._getConfiguredTestStepAttrs("name")
 
     def _getConfiguredTestStepColumnIDs(self):
-        return self._getConfiguredTestStepAttrs('id')
+        return self._getConfiguredTestStepAttrs("id")
 
     def _testStepNoneCheck(self):
         """
@@ -694,9 +722,8 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         Checks if the testSteps custom field is available for this workitem. If so it allows test steps to be added.
         @return: True when test steps are available
         """
-        service = self._polarion.getService('Tracker')
-        return 'testSteps' in service.getCustomFieldKeys(self.uri)
-
+        service = self._polarion.getService("Tracker")
+        return "testSteps" in service.getCustomFieldKeys(self.uri)
 
     def save(self) -> None:
         """
@@ -706,13 +733,13 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
             return
         updated_item = self._build_update_dict(self, self._polarion_item, self._original_polarion)
         if updated_item:
-            updated_item['uri'] = self.uri
-            service = self._polarion.getService('Tracker')
+            updated_item["uri"] = self.uri
+            service = self._polarion.getService("Tracker")
             service.updateWorkItem(updated_item)
             self._reloadFromPolarion()
 
     def _reloadFromPolarion(self) -> None:
-        service = self._polarion.getService('Tracker')
+        service = self._polarion.getService("Tracker")
         self._polarion_item = service.getWorkItemByUri(self._polarion_item.uri)
         self._buildWorkitemFromPolarion()
 
@@ -725,11 +752,10 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         return self._compareType(a, b)
 
     def _compareType(self, a, b):
-        basic_types = [int, float,
-                       bool, type(None), str, datetime, date]
+        basic_types = [int, float, bool, type(None), str, datetime, date]
 
         for key in a:
-            if key.startswith('_'):
+            if key.startswith("_"):
                 # skip private types
                 continue
             # first to a quick type compare to catch any easy differences
@@ -754,7 +780,7 @@ class Workitem(CustomFields, Comments, PostponeSaveMixin):
         return True
 
     def __repr__(self) -> str:
-        return f'{self._id}: {self._truncate(self.title)}'
+        return f"{self._id}: {self._truncate(self.title)}"
 
     __str__ = __repr__
 

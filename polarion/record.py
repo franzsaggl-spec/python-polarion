@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from enum import Enum
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 from .base.polarion_object import PolarionObject, PostponeSaveMixin
 from .exceptions import PolarionNotFoundError
@@ -24,21 +24,23 @@ class Record(PolarionObject, PostponeSaveMixin):
     :param index: The index of this record in the test run
 
     """
-    _default_summary_fields = ['testcase_id', 'result', 'executed']
+
+    _default_summary_fields = ["testcase_id", "result", "executed"]
     _field_accessors = {
-        'testcase_id': lambda self: self.testcase_id,
-        'result': lambda self: self.getResult(),
+        "testcase_id": lambda self: self.testcase_id,
+        "result": lambda self: self.getResult(),
     }
 
     class ResultType(Enum):
         """
         Record result enum
         """
+
         No = None
-        PASSED = 'passed'
-        FAILED = 'failed'
-        BLOCKED = 'blocked'
-        NOTTESTED = 'not_tested'
+        PASSED = "passed"
+        FAILED = "failed"
+        BLOCKED = "blocked"
+        NOTTESTED = "not_tested"
 
     def __init__(self, polarion: Polarion, test_run: Testrun, polarion_record: Any, index: int) -> None:
         super().__init__(polarion, None, None, None)
@@ -52,17 +54,17 @@ class Record(PolarionObject, PostponeSaveMixin):
         self._populate_attrs(self, self._polarion_record)
 
         self._testcase = self._polarion_record.testCaseURI
-        self._testcase_name = self._testcase.split('}')[1]
+        self._testcase_name = self._testcase.split("}")[1]
         self._defect = self._polarion_record.defectURI
 
     def _reloadFromPolarion(self) -> None:
-        service = self._polarion.getService('TestManagement')
+        service = self._polarion.getService("TestManagement")
         self._polarion_record = service.getTestCaseRecords(self._test_run.uri, self._testcase)[0]
         self._buildWorkitemFromPolarion()
         # self._original_polarion_test_run = copy.deepcopy(self._polarion_test_run)
 
     def setTestStepResult(self, step_number: int, result: ResultType, comment: Optional[str] = None) -> None:
-        """"
+        """ "
         Set the result of a test step
 
         :param step_number: Step number
@@ -71,22 +73,21 @@ class Record(PolarionObject, PostponeSaveMixin):
         """
         if self.testStepResults is None:
             # get the number of test steps in
-            service = self._polarion.getService('TestManagement')
+            service = self._polarion.getService("TestManagement")
             test_steps = service.getTestSteps(self.testCaseURI)
             number_of_steps = 0
             if test_steps.steps is not None:
                 number_of_steps = len(test_steps.steps.TestStep)
             self.testStepResults = self._polarion.ArrayOfTestStepResultType()
             for _i in range(number_of_steps):
-                self.testStepResults.TestStepResult.append(
-                    self._polarion.TestStepResultType())
+                self.testStepResults.TestStepResult.append(self._polarion.TestStepResultType())
 
         if step_number < len(self.testStepResults.TestStepResult):
-            self.testStepResults.TestStepResult[step_number].result = self._polarion.EnumOptionIdType(
-                id=result.value)
+            self.testStepResults.TestStepResult[step_number].result = self._polarion.EnumOptionIdType(id=result.value)
             if comment is not None:
                 self.testStepResults.TestStepResult[step_number].comment = self._polarion.TextType(
-                    content=comment, type='text/html', contentLossy=False)
+                    content=comment, type="text/html", contentLossy=False
+                )
 
         self.save()
 
@@ -134,8 +135,7 @@ class Record(PolarionObject, PostponeSaveMixin):
 
         :param comment: Comment string, may contain HTML
         """
-        self.comment = self._polarion.TextType(
-            content=comment, type='text/html', contentLossy=False)
+        self.comment = self._polarion.TextType(content=comment, type="text/html", contentLossy=False)
 
     def setResult(self, result: ResultType = ResultType.FAILED, comment: Optional[str] = None) -> None:
         """
@@ -149,8 +149,7 @@ class Record(PolarionObject, PostponeSaveMixin):
         if self.result is not None:
             self.result.id = result.value
         else:
-            self.result = self._polarion.EnumOptionIdType(
-                id=result.value)
+            self.result = self._polarion.EnumOptionIdType(id=result.value)
         self.save()
 
     def getExecutingUser(self) -> Optional[User]:
@@ -172,7 +171,7 @@ class Record(PolarionObject, PostponeSaveMixin):
         :rtype: boolean
         """
         return self.attachments is not None
-    
+
     def getAttachment(self, file_name: str) -> bytes:
         """
         Get the attachment data
@@ -190,7 +189,7 @@ class Record(PolarionObject, PostponeSaveMixin):
         if url is not None:
             return self._polarion.downloadFromSvn(url)
         else:
-            raise PolarionNotFoundError(f'Could not find attachment with name {file_name}')
+            raise PolarionNotFoundError(f"Could not find attachment with name {file_name}")
 
     def saveAttachmentAsFile(self, file_name: str, file_path: str) -> None:
         """
@@ -209,7 +208,7 @@ class Record(PolarionObject, PostponeSaveMixin):
 
         :param file_name: The attachment file name
         """
-        service = self._polarion.getService('TestManagement')
+        service = self._polarion.getService("TestManagement")
         service.deleteAttachmentFromTestRecord(self._test_run.uri, self._index, file_name)
         self._reloadFromPolarion()
 
@@ -220,7 +219,7 @@ class Record(PolarionObject, PostponeSaveMixin):
         :param file_path: Source file to upload
         :param title: The title of the attachment
         """
-        service = self._polarion.getService('TestManagement')
+        service = self._polarion.getService("TestManagement")
         file_name = os.path.basename(file_path)
         with open(file_path, "rb") as file_content:
             service.addAttachmentToTestRecord(self._test_run.uri, self._index, file_name, title, file_content.read())
@@ -237,7 +236,7 @@ class Record(PolarionObject, PostponeSaveMixin):
         if self.testStepResults is None:
             return False
         return self.testStepResults.TestStepResult[step_index].attachments is not None
-    
+
     def getAttachmentFromTestStep(self, step_index: int, file_name: str) -> bytes:
         """
         Get the attachment data from a test step
@@ -256,7 +255,7 @@ class Record(PolarionObject, PostponeSaveMixin):
         if url is not None:
             return self._polarion.downloadFromSvn(url)
         else:
-            raise PolarionNotFoundError(f'Could not find attachment with name {file_name}')
+            raise PolarionNotFoundError(f"Could not find attachment with name {file_name}")
 
     def saveAttachmentFromTestStepAsFile(self, step_index: int, file_name: str, file_path: str) -> None:
         """
@@ -277,7 +276,7 @@ class Record(PolarionObject, PostponeSaveMixin):
         :param step_index: The test step index
         :param file_name: The attachment file name
         """
-        service = self._polarion.getService('TestManagement')
+        service = self._polarion.getService("TestManagement")
         service.deleteAttachmentFromTestStep(self._test_run.uri, self._index, step_index, file_name)
         self._reloadFromPolarion()
 
@@ -289,10 +288,12 @@ class Record(PolarionObject, PostponeSaveMixin):
         :param file_path: Source file to upload
         :param title: The title of the attachment
         """
-        service = self._polarion.getService('TestManagement')
+        service = self._polarion.getService("TestManagement")
         file_name = os.path.basename(file_path)
         with open(file_path, "rb") as file_content:
-            service.addAttachmentToTestStep(self._test_run.uri, self._index, step_index, file_name, title, file_content.read())
+            service.addAttachmentToTestStep(
+                self._test_run.uri, self._index, step_index, file_name, title, file_content.read()
+            )
         self._reloadFromPolarion()
 
     def save(self) -> None:
@@ -304,15 +305,14 @@ class Record(PolarionObject, PostponeSaveMixin):
 
         new_item = {}
         for attr, value in self.__dict__.items():
-            if not attr.startswith('_'):
+            if not attr.startswith("_"):
                 # only add if public value
                 new_item[attr] = value
-        service = self._polarion.getService('TestManagement')
-        service.executeTest(
-            self._test_run.uri, new_item)
+        service = self._polarion.getService("TestManagement")
+        service.executeTest(self._test_run.uri, new_item)
         self._reloadFromPolarion()
 
     def __repr__(self) -> str:
-        return f'{self._testcase_name} in {self._test_run.id} ({self.getResult()} on {self.executed})'
+        return f"{self._testcase_name} in {self._test_run.id} ({self.getResult()} on {self.executed})"
 
     __str__ = __repr__

@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
+from .document import Document
 from .exceptions import PolarionNotFoundError
 from .factory import createFromUri
-from .workitem import Workitem
+from .plan import Plan
 from .testrun import Testrun
 from .user import User
-from .plan import Plan
-from .document import Document
+from .workitem import Workitem
 
 if TYPE_CHECKING:
     from .polarion import Polarion
@@ -31,31 +31,31 @@ class Project:
         self.id = project_id
 
         # get details from polarion on this project
-        service = self.polarion.getService('Project')
+        service = self.polarion.getService("Project")
         try:
             self.polarion_data = service.getProject(self.id)
         except Exception as e:
-            raise PolarionNotFoundError(f'Could not find project {project_id}') from e
+            raise PolarionNotFoundError(f"Could not find project {project_id}") from e
 
-        if 'name' in self.polarion_data and not self.polarion_data.unresolvable:
+        if "name" in self.polarion_data and not self.polarion_data.unresolvable:
             # succeeded
             self.name = self.polarion_data.name
             self.tracker_prefix = self.polarion_data.trackerPrefix
         else:
-            raise PolarionNotFoundError(f'Could not find project {project_id}')
+            raise PolarionNotFoundError(f"Could not find project {project_id}")
 
     def getUsers(self) -> list[User]:
         """
         Gets all users in this project
         """
         users = []
-        service = self.polarion.getService('Project')
+        service = self.polarion.getService("Project")
         project_users = service.getProjectUsers(self.id)
         for user in project_users:
             try:
                 users.append(User(self.polarion, user))
             except Exception as e:
-                logger.warning("Could not retrieve %s from server: %s", user['name'], e)
+                logger.warning("Could not retrieve %s from server: %s", user["name"], e)
         return users
 
     def findUser(self, name: str) -> Optional[User]:
@@ -86,7 +86,9 @@ class Project:
         """
         return Plan(self.polarion, self, id=id)
 
-    def createPlan(self, new_plan_name: str, new_plan_id: str, new_plan_template: str, new_plan_parent: Optional[Plan] = None) -> Plan:
+    def createPlan(
+        self, new_plan_name: str, new_plan_id: str, new_plan_template: str, new_plan_parent: Optional[Plan] = None
+    ) -> Plan:
         """
         Create a plan based on a template, plan name and plan ID.
         :param new_plan_name: The new plan name
@@ -97,10 +99,16 @@ class Project:
         :return: A new plan
         :rtype: Plan
         """
-        return Plan(self.polarion, self, new_plan_name=new_plan_name, new_plan_id=new_plan_id, new_plan_template=new_plan_template,
-                    new_plan_parent=new_plan_parent)
+        return Plan(
+            self.polarion,
+            self,
+            new_plan_name=new_plan_name,
+            new_plan_id=new_plan_id,
+            new_plan_template=new_plan_template,
+            new_plan_parent=new_plan_parent,
+        )
 
-    def searchPlan(self, query: str = '', order: str = 'Created', limit: int = 100) -> list[Any]:
+    def searchPlan(self, query: str = "", order: str = "Created", limit: int = 100) -> list[Any]:
         """Query for available plans. This will return the polarion data structures.
 
         :param query: The query to use while searching
@@ -109,11 +117,11 @@ class Project:
         :return: The search results
         :rtype: dict[]
         """
-        query += f' AND project.id:{self.id}'
-        service = self.polarion.getService('Planning')
+        query += f" AND project.id:{self.id}"
+        service = self.polarion.getService("Planning")
         return service.searchPlans(query, order, limit)
 
-    def searchPlanFullItem(self, query: str = '', order: str = 'Created', limit: int = 100) -> list[Plan]:
+    def searchPlanFullItem(self, query: str = "", order: str = "Created", limit: int = 100) -> list[Plan]:
         """Query for available plans. This will query for the plans and then fetch all result. May take a while for a big search with many results.
 
         :param query: The query to use while searching
@@ -124,7 +132,6 @@ class Project:
         """
         return [Plan(self.polarion, self, polarion_record=p) for p in self.searchPlan(query, order, limit)]
 
-
     def createWorkitem(self, workitem_type: str, new_workitem_fields: Optional[dict[str, Any]] = None) -> Workitem:
         """
         Create a workitem based on the workitem type.
@@ -134,7 +141,9 @@ class Project:
         """
         return Workitem(self.polarion, self, new_workitem_type=workitem_type, new_workitem_fields=new_workitem_fields)
 
-    def searchWorkitem(self, query: str = '', order: str = 'Created', field_list: Optional[list[str]] = None, limit: int = 100) -> list[Any]:
+    def searchWorkitem(
+        self, query: str = "", order: str = "Created", field_list: Optional[list[str]] = None, limit: int = 100
+    ) -> list[Any]:
         """Query for available workitems. This will only query for the items.
         If you also want the Workitems to be retrieved, used searchWorkitemFullItem.
 
@@ -149,14 +158,20 @@ class Project:
         :rtype: Workitem[] but only with the given fields set
         """
         if field_list is None:
-            field_list = ['id']
+            field_list = ["id"]
 
-        query += f' AND project.id:{self.id}'
-        service = self.polarion.getService('Tracker')
-        return service.queryWorkItemsLimited(
-            query, order, field_list, limit)
-    
-    def searchWorkitemInBaseline(self, baselineRevision: str, query: str = '', sort: str = 'uri', field_list: Optional[list[str]] = None, limit: int = 100) -> list[Any]:
+        query += f" AND project.id:{self.id}"
+        service = self.polarion.getService("Tracker")
+        return service.queryWorkItemsLimited(query, order, field_list, limit)
+
+    def searchWorkitemInBaseline(
+        self,
+        baselineRevision: str,
+        query: str = "",
+        sort: str = "uri",
+        field_list: Optional[list[str]] = None,
+        limit: int = 100,
+    ) -> list[Any]:
         """Query for available workitems in a baseline. This will only query for the items.
         If you also want the Workitems to be retrieved, used searchWorkitemFullItemInBaseline.
 
@@ -172,14 +187,13 @@ class Project:
         :rtype: Workitem[] but only with the given fields set
         """
         if field_list is None:
-            field_list = ['id']
-        
-        query += f' AND project.id:{self.id}'
-        service = self.polarion.getService('Tracker')
-        return service.queryWorkItemsInBaselineLimited(
-            query, sort, baselineRevision, field_list, limit)
+            field_list = ["id"]
 
-    def searchWorkitemFullItem(self, query: str = '', order: str = 'Created', limit: int = 100) -> list[Workitem]:
+        query += f" AND project.id:{self.id}"
+        service = self.polarion.getService("Tracker")
+        return service.queryWorkItemsInBaselineLimited(query, sort, baselineRevision, field_list, limit)
+
+    def searchWorkitemFullItem(self, query: str = "", order: str = "Created", limit: int = 100) -> list[Workitem]:
         """Query for available workitems. This will query for the items and then fetch all result. May take a while for a big search with many results.
 
         :param query: The query to use while searching
@@ -188,9 +202,11 @@ class Project:
         :return: The search results
         :rtype: Workitem[]
         """
-        return [Workitem(self.polarion, self, w.id) for w in self.searchWorkitem(query, order, ['id'], limit)]
-    
-    def searchWorkitemFullItemInBaseline(self, baselineRevision: str, query: str = '', sort: str = 'uri', limit: int = 100) -> list[Workitem]:
+        return [Workitem(self.polarion, self, w.id) for w in self.searchWorkitem(query, order, ["id"], limit)]
+
+    def searchWorkitemFullItemInBaseline(
+        self, baselineRevision: str, query: str = "", sort: str = "uri", limit: int = 100
+    ) -> list[Workitem]:
         """Query for available workitems in baseline. This will query for the items and then fetch all result. May take a while for a big search with many results.
 
         :param baselineRevision: The revision number of the baseline to search in
@@ -200,7 +216,10 @@ class Project:
         :return: The search results
         :rtype: Workitem[]
         """
-        return [Workitem(self.polarion, self, uri=w.uri) for w in self.searchWorkitemInBaseline(baselineRevision, query, sort, ['id'], limit)]
+        return [
+            Workitem(self.polarion, self, uri=w.uri)
+            for w in self.searchWorkitemInBaseline(baselineRevision, query, sort, ["id"], limit)
+        ]
 
     def getTestRun(self, id: str) -> Testrun:
         """Get a testrun by string
@@ -209,9 +228,9 @@ class Project:
         :return: The request testrun
         :rtype: Testrun
         """
-        return Testrun(self.polarion, f'subterra:data-service:objects:/default/{self.id}${{TestRun}}{id}')
+        return Testrun(self.polarion, f"subterra:data-service:objects:/default/{self.id}${{TestRun}}{id}")
 
-    def searchTestRuns(self, query: str = '', order: str = 'Created', limit: int = 100) -> list[Testrun]:
+    def searchTestRuns(self, query: str = "", order: str = "Created", limit: int = 100) -> list[Testrun]:
         """Query for available test runs
 
         :param query: The query to use while searching
@@ -221,19 +240,21 @@ class Project:
         :rtype: Testrun[]
         """
         if query:
-            query += ' AND '
-        query += f'project.id:{self.id}'
-        service = self.polarion.getService('TestManagement')
-        return [Testrun(self.polarion, polarion_test_run=tr) for tr in service.searchTestRunsLimited(query, order, limit)]
+            query += " AND "
+        query += f"project.id:{self.id}"
+        service = self.polarion.getService("TestManagement")
+        return [
+            Testrun(self.polarion, polarion_test_run=tr) for tr in service.searchTestRunsLimited(query, order, limit)
+        ]
 
     def createTestRun(self, id: str, title: str, template_id: str) -> Testrun:
         """
         Create a new test run with specified title from an existing test run template
-        :param id: 
-        :param title: 
-        :param template_id: 
+        :param id:
+        :param title:
+        :param template_id:
         """
-        service = self.polarion.getService('TestManagement')
+        service = self.polarion.getService("TestManagement")
         new_testrun_uri = service.createTestRunWithTitle(self.id, id, title, template_id)
         return createFromUri(self.polarion, self, new_testrun_uri)
 
@@ -244,10 +265,18 @@ class Project:
         :return: A list of options for the enum
         :rtype: string[]
         """
-        service = self.polarion.getService('Tracker')
+        service = self.polarion.getService("Tracker")
         return list(dict.fromkeys(a.id for a in service.getAllEnumOptionsForId(self.id, enum_name)))
 
-    def createDocument(self, location: str, name: str, title: str, allowed_workitem_types: list[str], structure_link_role: str, home_page_content: str = '') -> Document:
+    def createDocument(
+        self,
+        location: str,
+        name: str,
+        title: str,
+        allowed_workitem_types: list[str],
+        structure_link_role: str,
+        home_page_content: str = "",
+    ) -> Document:
         """
         Creates a new document
 
@@ -262,8 +291,10 @@ class Project:
         allowed_workitem_ids = [self.polarion.EnumOptionIdType(id=t) for t in allowed_workitem_types]
         structure_link_role_id = self.polarion.EnumOptionIdType(id=structure_link_role)
 
-        service = self.polarion.getService('Tracker')
-        uri = service.createDocument(self.id, location, name, title, allowed_workitem_ids, structure_link_role_id, home_page_content)
+        service = self.polarion.getService("Tracker")
+        uri = service.createDocument(
+            self.id, location, name, title, allowed_workitem_ids, structure_link_role_id, home_page_content
+        )
         return Document(self.polarion, self, uri)
 
     def getDocumentSpaces(self) -> list[str]:
@@ -271,7 +302,7 @@ class Project:
         Get a list al all document spaces.
         :return:string[]
         """
-        service = self.polarion.getService('Tracker')
+        service = self.polarion.getService("Tracker")
         spaces = service.getDocumentSpaces(self.id)
         return sorted(spaces)
 
@@ -280,7 +311,7 @@ class Project:
         Get a list of all document locations.
         :return:string[]
         """
-        service = self.polarion.getService('Tracker')
+        service = self.polarion.getService("Tracker")
         locations = service.getDocumentLocations(self.id)
         return sorted(locations)
 
@@ -290,7 +321,7 @@ class Project:
         :param space: Name of the space.
         :return: Document[]
         """
-        service = self.polarion.getService('Tracker')
+        service = self.polarion.getService("Tracker")
         return [Document(self.polarion, self, uri=u) for u in service.getModuleUris(self.id, space)]
 
     def getDocument(self, location: str) -> Document:
@@ -303,6 +334,6 @@ class Project:
         return Document(self.polarion, self, location=location)
 
     def __repr__(self) -> str:
-        return f'Polarion project {self.name} prefix {self.tracker_prefix}'
+        return f"Polarion project {self.name} prefix {self.tracker_prefix}"
 
     __str__ = __repr__

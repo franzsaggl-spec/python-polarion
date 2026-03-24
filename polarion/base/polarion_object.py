@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from polarion.polarion import Polarion
@@ -12,7 +12,9 @@ class PolarionObject:
     _default_summary_fields: list[str] = []
     _field_accessors: dict[str, Any] = {}
 
-    def __init__(self, polarion: Polarion, project: Optional[Project], id: Optional[str] = None, uri: Optional[str] = None) -> None:
+    def __init__(
+        self, polarion: Polarion, project: Optional[Project], id: Optional[str] = None, uri: Optional[str] = None
+    ) -> None:
         self._polarion = polarion
         self._project = project
         self._id = id
@@ -27,7 +29,9 @@ class PolarionObject:
                 setattr(target, name, value[key])
 
     @staticmethod
-    def _build_update_dict(obj: Any, polarion_obj: Any, original_obj: Any, skip: Optional[set[str]] = None) -> dict[str, Any]:
+    def _build_update_dict(
+        obj: Any, polarion_obj: Any, original_obj: Any, skip: Optional[set[str]] = None
+    ) -> dict[str, Any]:
         """Build a dict of changed attributes by diffing current vs original state."""
         updated: dict[str, Any] = {}
         for attr, value in polarion_obj.__dict__.items():
@@ -42,7 +46,7 @@ class PolarionObject:
     def _truncate(text: str, max_len: int = 50) -> str:
         """Truncate text with ellipsis if longer than max_len."""
         if len(text) > max_len:
-            return text[:max_len] + '...'
+            return text[:max_len] + "..."
         return text
 
     def to_dict(self, fields: Optional[list[str]] = None) -> dict[str, Any]:
@@ -61,8 +65,8 @@ class PolarionObject:
                 result[field] = self._field_accessors[field](self)
             elif hasattr(self, field):
                 value = getattr(self, field)
-                if hasattr(value, '__dict__') and not isinstance(value, (str, int, float, bool, date, datetime)):
-                    result[field] = value.id if hasattr(value, 'id') else str(value)
+                if hasattr(value, "__dict__") and not isinstance(value, (str, int, float, bool, date, datetime)):
+                    result[field] = value.id if hasattr(value, "id") else str(value)
                 else:
                     result[field] = value
 
@@ -77,6 +81,7 @@ class PolarionObject:
 
 class PostponeSaveMixin:
     """Mixin providing context manager support for deferred save."""
+
     _postpone_save: bool = False
 
     def __enter__(self):

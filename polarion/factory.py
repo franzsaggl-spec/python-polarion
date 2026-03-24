@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from abc import ABC, abstractmethod
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .exceptions import PolarionFieldError
 
@@ -11,7 +11,6 @@ if TYPE_CHECKING:
 
 
 class Creator(ABC):
-
     @abstractmethod
     def createFromUri(self, polarion: Polarion, project: Any, uri: str) -> Any:
         pass
@@ -30,15 +29,15 @@ def createFromUri(polarion: Polarion, project: Any, uri: str) -> Any:
         creator = creator_list[type_name]()
         return creator.createFromUri(polarion, project, uri)
     else:
-        raise PolarionFieldError(f'type {type_name} not supported')
+        raise PolarionFieldError(f"type {type_name} not supported")
 
 
 def _subterraUrl(uri: str) -> str:
-    uri_parts = uri.split(':')
-    if uri_parts[0] != 'subterra':
-        raise PolarionFieldError(f'Not a subterra uri: {uri}')
+    uri_parts = uri.split(":")
+    if uri_parts[0] != "subterra":
+        raise PolarionFieldError(f"Not a subterra uri: {uri}")
     uri_type = re.findall(r"{(\w+)}", uri)
     if len(uri_type) >= 1:
         return uri_type[0].lower()
     else:
-        raise PolarionFieldError(f'{uri} is not a valid polarion uri')
+        raise PolarionFieldError(f"{uri} is not a valid polarion uri")
