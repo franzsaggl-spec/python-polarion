@@ -333,42 +333,6 @@ class Project:
         """
         return Document(self.polarion, self, location=location)
 
-    def countWorkitems(self, query: str = "") -> int:
-        """
-        Count workitems matching a query without fetching full objects.
-        Efficient for checking "how many items match" before deciding to fetch.
-
-        :param query: The query to use while searching
-        :return: The number of matching workitems
-        :rtype: int
-        """
-        results = self.searchWorkitem(query, order="Created", field_list=["id"], limit=-1)
-        return len(results)
-
-    def countPlans(self, query: str = "") -> int:
-        """
-        Count plans matching a query without fetching full objects.
-        Efficient for checking "how many plans match" before deciding to fetch.
-
-        :param query: The query to use while searching
-        :return: The number of matching plans
-        :rtype: int
-        """
-        results = self.searchPlan(query, order="Created", limit=-1)
-        return len(results)
-
-    def countTestRuns(self, query: str = "") -> int:
-        """
-        Count test runs matching a query without fetching full objects.
-        Efficient for checking "how many test runs match" before deciding to fetch.
-
-        :param query: The query to use while searching
-        :return: The number of matching test runs
-        :rtype: int
-        """
-        results = self.searchTestRuns(query, order="Created", limit=-1)
-        return len(results)
-
     def __repr__(self) -> str:
         return f"Polarion project {self.name} prefix {self.tracker_prefix}"
 

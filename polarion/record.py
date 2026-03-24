@@ -25,6 +25,12 @@ class Record(PolarionObject, PostponeSaveMixin):
 
     """
 
+    _default_summary_fields = ["testcase_id", "result", "executed"]
+    _field_accessors = {
+        "testcase_id": lambda self: self.testcase_id,
+        "result": lambda self: self.getResult(),
+    }
+
     class ResultType(Enum):
         """
         Record result enum
@@ -305,40 +311,6 @@ class Record(PolarionObject, PostponeSaveMixin):
         service = self._polarion.getService("TestManagement")
         service.executeTest(self._test_run.uri, new_item)
         self._reloadFromPolarion()
-
-    def to_dict(self, fields: Optional[list[str]] = None) -> dict[str, Any]:
-        """
-        Return a dictionary representation of the record.
-
-        :param fields: List of field names to include. If None, returns minimal summary with: testcase_id, result, executed
-        :return: Dictionary with requested fields
-        :rtype: dict
-        """
-        from datetime import date, datetime
-
-        if fields is None:
-            # Return minimal summary for context efficiency
-            fields = ["testcase_id", "result", "executed"]
-
-        result = {}
-        for field in fields:
-            # Handle special fields
-            if field == "testcase_id":
-                result[field] = self.testcase_id
-            elif field == "result":
-                result[field] = self.getResult()
-            elif hasattr(self, field):
-                value = getattr(self, field)
-                # Convert complex objects to simple representations
-                if hasattr(value, "__dict__") and not isinstance(value, (str, int, float, bool, date, datetime)):
-                    if hasattr(value, "id"):
-                        result[field] = value.id
-                    else:
-                        result[field] = str(value)
-                else:
-                    result[field] = value
-
-        return result
 
     def __repr__(self) -> str:
         return f"{self._testcase_name} in {self._test_run.id} ({self.getResult()} on {self.executed})"
