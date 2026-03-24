@@ -1,36 +1,51 @@
+"""Comments mixin for Polarion objects."""
+
 from __future__ import annotations
 
 from abc import ABC
-from typing import Optional
 
 from polarion.base.polarion_object import PolarionObject
 from polarion.exceptions import PolarionApiError, PolarionFieldError
+from polarion.types import TextContent
 
 
 class Comments(PolarionObject, ABC):
-    def addComment(self, title: Optional[str], comment: str, parent: Optional[str] = None, type: str = "html") -> None:
-        """
-        Adds a comment to the workitem.
+    """Mixin providing comment operations on Polarion objects."""
 
-        Throws an exception if the function is disabled in Polarion.
+    def add_comment(
+        self,
+        title: str | None,
+        comment: str,
+        parent: str | None = None,
+        content_type: str = "html",
+    ) -> None:
+        """Add a comment to this item.
 
-        :param title: Title of the comment (will be None for a reply)
-        :param comment: The comment, may contain html
-        :param parent: A parent comment, if none provided it's a root comment.
+        :param title: Title of the comment (None for replies)
+        :param comment: Comment text (may contain HTML)
+        :param parent: Parent comment URI for replies. If None, added as root comment.
+        :param content_type: "html" or "plain" (expanded to "text/html" or "text/plain")
+        :raises PolarionFieldError: If content_type is invalid
+        :raises PolarionApiError: If comments are disabled
         """
-        service = self._polarion.getService("Tracker")
-        if type not in ("html", "plain"):
-            raise PolarionFieldError("Type must be either html or plain.")
-        if hasattr(service, "addComment"):
-            if parent is None:
-                parent = self.uri
-            else:
-                # force title to be empty, not allowed for reply comments
-                title = None
-            content = {"type": f"text/{type}", "content": comment, "contentLossy": False}
-            service.addComment(parent, title, content)
-            self._reloadFromPolarion()
+        if content_type not in ("html", "plain"):
+            raise PolarionFieldError("content_type must be either 'html' or 'plain'")
+
+        if parent is None:
+            parent = self.uri
         else:
-            raise PolarionApiError(
-                "addComment binding not found in Tracker Service. Adding comments might be disabled."
+            title = None  # replies cannot have titles
+
+        content = TextContent(content=comment, content_type=f"text/{content_type}").to_soap()
+
+        try:
+            self._polarion._soap.call(
+                "Tracker",
+                "addComment",
+                parentURI=parent,
+                title=title,
+                content=content,
             )
+            self._reload_from_polarion()
+        except Exception as e:
+            raise PolarionApiError(f"Could not add comment: {e}. Adding comments might be disabled.") from e

@@ -1,4 +1,4 @@
-"""Tests for the exception hierarchy in polarion/exceptions.py."""
+"""Tests for the exception hierarchy in polarion/exceptions.py (v2.0.0 API)."""
 
 import pytest
 

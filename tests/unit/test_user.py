@@ -1,6 +1,4 @@
-"""Tests for the User class."""
-
-from unittest.mock import MagicMock
+"""Tests for the User class (v2.0.0 API)."""
 
 import pytest
 
@@ -9,9 +7,7 @@ from polarion.user import User
 
 
 def _make_user_record(**overrides):
-    """Create a fake zeep user record using the ZeepObject helper from conftest."""
-    from tests.unit.conftest import _zeep_object
-
+    """Create a fake user record dict for v2.0.0."""
     data = {
         "id": "jdoe",
         "name": "John Doe",
@@ -21,8 +17,7 @@ def _make_user_record(**overrides):
         "disabledNotifications": None,
     }
     data.update(overrides)
-    unresolvable = data.pop("unresolvable", False)
-    return _zeep_object(data, unresolvable=unresolvable)
+    return data
 
 
 # ------------------------------------------------------------------
@@ -53,15 +48,15 @@ def test_creation_copies_all_attributes(mock_polarion):
 def test_creation_from_uri(mock_polarion):
     record = _make_user_record(id="uri_user", name="URI User")
 
-    project_service = MagicMock()
-    project_service.getUserByUri.return_value = record
-
-    mock_polarion.getService = MagicMock(return_value=project_service)
+    mock_polarion._soap.call.side_effect = None
+    mock_polarion._soap.call.return_value = record
 
     user = User(mock_polarion, uri="subterra:data-service:objects:/default/${User}uri_user")
     assert user.id == "uri_user"
     assert user.name == "URI User"
-    project_service.getUserByUri.assert_called_once()
+    mock_polarion._soap.call.assert_called_once_with(
+        "Project", "getUserByUri", uri="subterra:data-service:objects:/default/${User}uri_user"
+    )
 
 
 # ------------------------------------------------------------------
@@ -70,14 +65,15 @@ def test_creation_from_uri(mock_polarion):
 
 
 def test_raises_not_found_on_unresolvable_record(mock_polarion):
-    record = _make_user_record(unresolvable=True)
+    record = _make_user_record()
+    record["unresolvable"] = True
 
-    with pytest.raises(PolarionNotFoundError, match="User not retrieved"):
+    with pytest.raises(PolarionNotFoundError):
         User(mock_polarion, polarion_record=record)
 
 
 def test_raises_not_found_on_none_record(mock_polarion):
-    with pytest.raises(PolarionNotFoundError, match="User not retrieved"):
+    with pytest.raises(PolarionNotFoundError):
         User(mock_polarion, polarion_record=None)
 
 

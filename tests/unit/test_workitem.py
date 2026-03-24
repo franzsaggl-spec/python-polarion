@@ -1,146 +1,131 @@
-"""Tests for key workitem functionality with mocked SOAP layer."""
+"""Tests for key workitem functionality with mocked SOAP layer (v2.0.0 API)."""
 
+import copy
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from polarion.exceptions import PolarionFieldError
 from polarion.workitem import Workitem
 
 
 def _make_workitem(mock_polarion, mock_project, mock_workitem_data):
     """Build a Workitem from mocked data without hitting SOAP.
 
-    We mock getService so that:
+    We mock _soap.call so that:
     - Tracker.getWorkItemById returns mock_workitem_data
     - Tracker.getCustomFieldKeys returns [] (no test step field)
     - TestManagement.getTestSteps returns a stub
     """
-    tracker_service = MagicMock()
-    tracker_service.getWorkItemById.return_value = mock_workitem_data
-    tracker_service.getCustomFieldKeys.return_value = []
+    data = copy.deepcopy(mock_workitem_data)
 
-    test_mgmt_service = MagicMock()
-    test_mgmt_service.getTestSteps.return_value = MagicMock(keys=None, steps=None)
+    def _soap_call(service, method, **kwargs):
+        if service == "Tracker" and method == "getWorkItemById":
+            return data
+        if service == "Tracker" and method == "getCustomFieldKeys":
+            return []
+        if service == "TestManagement" and method == "getTestSteps":
+            return {"keys": None, "steps": None}
+        return None
 
-    def _get_service(name):
-        if name == "Tracker":
-            return tracker_service
-        if name == "TestManagement":
-            return test_mgmt_service
-        return MagicMock()
+    mock_polarion._soap.call.side_effect = _soap_call
+    wi = Workitem(mock_polarion, mock_project, id="WI-001")
 
-    with patch.object(mock_polarion, "getService", side_effect=_get_service):
-        wi = Workitem(mock_polarion, mock_project, id="WI-001")
-
-    # Re-patch getService for any subsequent calls the test might trigger
-    mock_polarion.getService = MagicMock(side_effect=_get_service)
-    wi._tracker_service = tracker_service
+    # Keep the side_effect for subsequent calls the test might trigger
     return wi
 
 
 # ------------------------------------------------------------------
-# getDescription
+# get_description
 # ------------------------------------------------------------------
 
 
 def test_get_description_returns_content(mock_polarion, mock_project, mock_workitem_data):
     wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
-    assert wi.getDescription() == "<p>Test description</p>"
+    assert wi.get_description() == "<p>Test description</p>"
 
 
 def test_get_description_returns_none_when_empty(mock_polarion, mock_project, mock_workitem_data):
-    mock_workitem_data.description = None
-    mock_workitem_data.__dict__["__values__"]["description"] = None
+    mock_workitem_data["description"] = None
     wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
-    assert wi.getDescription() is None
+    assert wi.get_description() is None
 
 
 # ------------------------------------------------------------------
-# setDescription
-# ------------------------------------------------------------------
-
-
-def test_set_description_calls_save(mock_polarion, mock_project, mock_workitem_data):
-    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
-    with patch.object(wi, "save") as mock_save:
-        wi.setDescription("new desc")
-        mock_save.assert_called_once()
-
-
-# ------------------------------------------------------------------
-# hasTestSteps
+# has_test_steps
 # ------------------------------------------------------------------
 
 
 def test_has_test_steps_false_when_none(mock_polarion, mock_project, mock_workitem_data):
     wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
-    # _parsed_test_steps is None by default when no steps are configured
     wi._parsed_test_steps = None
-    assert wi.hasTestSteps() is False
+    assert wi.has_test_steps() is False
 
 
 def test_has_test_steps_false_when_empty(mock_polarion, mock_project, mock_workitem_data):
     wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
     wi._parsed_test_steps = []
-    assert wi.hasTestSteps() is False
+    assert wi.has_test_steps() is False
 
 
 def test_has_test_steps_true_when_present(mock_polarion, mock_project, mock_workitem_data):
     wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
     wi._parsed_test_steps = [{"step": "do something", "expected": "it works"}]
-    assert wi.hasTestSteps() is True
+    assert wi.has_test_steps() is True
 
 
 # ------------------------------------------------------------------
-# getStatusEnum, getResolutionEnum, getSeverityEnum
+# get_status_enum, get_resolution_enum, get_severity_enum
 # ------------------------------------------------------------------
 
 
 def test_get_status_enum_returns_empty_on_error(mock_polarion, mock_project, mock_workitem_data):
     wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
     wi._project = MagicMock()
-    wi._project.getEnum.side_effect = Exception("enum error")
-    assert wi.getStatusEnum() == []
+    wi._project.get_enum.side_effect = Exception("enum error")
+    assert wi.get_status_enum() == []
 
 
 def test_get_resolution_enum_returns_empty_on_error(mock_polarion, mock_project, mock_workitem_data):
     wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
     wi._project = MagicMock()
-    wi._project.getEnum.side_effect = Exception("enum error")
-    assert wi.getResolutionEnum() == []
+    wi._project.get_enum.side_effect = Exception("enum error")
+    assert wi.get_resolution_enum() == []
 
 
 def test_get_severity_enum_returns_empty_on_error(mock_polarion, mock_project, mock_workitem_data):
     wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
     wi._project = MagicMock()
-    wi._project.getEnum.side_effect = Exception("enum error")
-    assert wi.getSeverityEnum() == []
+    wi._project.get_enum.side_effect = Exception("enum error")
+    assert wi.get_severity_enum() == []
 
 
 def test_get_status_enum_returns_values(mock_polarion, mock_project, mock_workitem_data):
     wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
     wi._project = MagicMock()
-    wi._project.getEnum.return_value = ["open", "closed", "in_progress"]
-    assert wi.getStatusEnum() == ["open", "closed", "in_progress"]
+    wi._project.get_enum.return_value = ["open", "closed", "in_progress"]
+    assert wi.get_status_enum() == ["open", "closed", "in_progress"]
 
 
 # ------------------------------------------------------------------
-# hasAttachment
+# has_attachment
 # ------------------------------------------------------------------
 
 
 def test_has_attachment_false(mock_polarion, mock_project, mock_workitem_data):
     wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
     wi.attachments = None
-    assert wi.hasAttachment() is False
+    assert wi.has_attachment() is False
 
 
 def test_has_attachment_true(mock_polarion, mock_project, mock_workitem_data):
     wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
-    wi.attachments = MagicMock()  # non-None
-    assert wi.hasAttachment() is True
+    wi.attachments = [{"id": "att1"}]
+    assert wi.has_attachment() is True
 
 
 # ------------------------------------------------------------------
-# Context manager (__enter__ / __exit__)
+# Context manager (batch save via __enter__ / __exit__)
 # ------------------------------------------------------------------
 
 
@@ -149,23 +134,34 @@ def test_context_manager_postpones_save(mock_polarion, mock_project, mock_workit
 
     with patch.object(wi, "save") as mock_save:
         with wi:
-            assert wi._postpone_save is True
-            # Calling save inside the context should be a no-op because
-            # postpone is True and the real save checks for it
-            wi.save()
-        # __exit__ should set postpone to False and call save
-        assert wi._postpone_save is False
-    # save was called: once from our explicit call inside `with` (no-op due to postpone)
-    # and once from __exit__
-    assert mock_save.call_count == 2
+            assert wi._batch_save is True
+        assert wi._batch_save is False
+    # __exit__ calls save once (only when no exception)
+    mock_save.assert_called_once()
 
 
-def test_context_manager_sets_postpone_false_on_exit(mock_polarion, mock_project, mock_workitem_data):
+def test_context_manager_sets_batch_save_false_on_exit(mock_polarion, mock_project, mock_workitem_data):
     wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
     with patch.object(wi, "save"):
         with wi:
             pass
-    assert wi._postpone_save is False
+    assert wi._batch_save is False
+
+
+# ------------------------------------------------------------------
+# batch() context manager
+# ------------------------------------------------------------------
+
+
+def test_batch_context_manager_defers_save(mock_polarion, mock_project, mock_workitem_data):
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+
+    with patch.object(wi, "save") as mock_save:
+        with wi.batch() as batched_wi:
+            assert batched_wi._batch_save is True
+            assert batched_wi is wi
+        assert wi._batch_save is False
+    mock_save.assert_called_once()
 
 
 # ------------------------------------------------------------------
@@ -212,45 +208,48 @@ def test_repr_contains_id_and_title(mock_polarion, mock_project, mock_workitem_d
 
 def test_save_no_changes_does_not_call_update(mock_polarion, mock_project, mock_workitem_data):
     wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
-    tracker_service = MagicMock()
-    mock_polarion.getService = MagicMock(return_value=tracker_service)
+    mock_polarion._soap.call.reset_mock()
+    mock_polarion._soap.call.side_effect = None
+    mock_polarion._soap.call.return_value = None
 
     wi.save()
-    tracker_service.updateWorkItem.assert_not_called()
+    # updateWorkItem should not be called since nothing changed
+    for c in mock_polarion._soap.call.call_args_list:
+        assert c[0][1] != "updateWorkItem"
 
 
 # ------------------------------------------------------------------
-# getLinkedItem returns empty when no links
+# get_linked_items returns empty when no links
 # ------------------------------------------------------------------
 
 
-def test_get_linked_item_empty_when_no_links(mock_polarion, mock_project, mock_workitem_data):
+def test_get_linked_items_empty_when_no_links(mock_polarion, mock_project, mock_workitem_data):
     wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
     wi.linkedWorkItems = None
     wi.linkedWorkItemsDerived = None
-    assert wi.getLinkedItem() == []
+    assert wi.get_linked_items() == []
 
 
 # ------------------------------------------------------------------
-# getAssignedUsers returns empty when assignee is None
+# get_assigned_users returns empty when assignee is None
 # ------------------------------------------------------------------
 
 
 def test_get_assigned_users_empty_when_none(mock_polarion, mock_project, mock_workitem_data):
     wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
     wi.assignee = None
-    assert wi.getAssignedUsers() == []
+    assert wi.get_assigned_users() == []
 
 
 # ------------------------------------------------------------------
-# getApproverUsers returns empty when approvals is None
+# get_approver_users returns empty when approvals is None
 # ------------------------------------------------------------------
 
 
 def test_get_approver_users_empty_when_none(mock_polarion, mock_project, mock_workitem_data):
     wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
     wi.approvals = None
-    assert wi.getApproverUsers() == []
+    assert wi.get_approver_users() == []
 
 
 # ------------------------------------------------------------------
@@ -303,10 +302,8 @@ def test_to_dict_handles_missing_field(mock_polarion, mock_project, mock_workite
 
 def test_repr_truncates_long_title(mock_polarion, mock_project, mock_workitem_data):
     """__repr__ should truncate titles longer than 50 chars."""
-    # Set a long title
     long_title = "A" * 100
-    mock_workitem_data.title = long_title
-    mock_workitem_data.__dict__["__values__"]["title"] = long_title
+    mock_workitem_data["title"] = long_title
 
     wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
     r = repr(wi)
@@ -320,11 +317,31 @@ def test_repr_truncates_long_title(mock_polarion, mock_project, mock_workitem_da
 def test_repr_does_not_truncate_short_title(mock_polarion, mock_project, mock_workitem_data):
     """__repr__ should not truncate titles 50 chars or less."""
     short_title = "Short title"
-    mock_workitem_data.title = short_title
-    mock_workitem_data.__dict__["__values__"]["title"] = short_title
+    mock_workitem_data["title"] = short_title
 
     wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
     r = repr(wi)
 
     assert short_title in r
     assert "..." not in r
+
+
+# ------------------------------------------------------------------
+# perform_action raises PolarionFieldError when action not found
+# ------------------------------------------------------------------
+
+
+def test_perform_action_raises_when_action_not_found(mock_polarion, mock_project, mock_workitem_data):
+    """perform_action should raise PolarionFieldError when the requested action is not available."""
+    wi = _make_workitem(mock_polarion, mock_project, mock_workitem_data)
+
+    # Mock getAvailableActions to return actions that don't match
+    mock_polarion._soap.call.reset_mock()
+    mock_polarion._soap.call.side_effect = None
+    mock_polarion._soap.call.return_value = [
+        {"nativeActionId": "approve", "actionName": "Approve", "actionId": 1},
+        {"nativeActionId": "reject", "actionName": "Reject", "actionId": 2},
+    ]
+
+    with pytest.raises(PolarionFieldError, match="Action 'nonexistent' not available"):
+        wi.perform_action("nonexistent")

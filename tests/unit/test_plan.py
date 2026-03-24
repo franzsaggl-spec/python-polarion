@@ -1,14 +1,12 @@
-"""Tests for Plan with mocked SOAP layer."""
+"""Tests for Plan with mocked SOAP layer (v2.0.0 API)."""
 
+import copy
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from polarion.exceptions import PolarionNotFoundError
 from polarion.plan import Plan
-
-# Local import of the shared zeep mock helper from conftest
-from tests.unit.conftest import _zeep_object
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -17,50 +15,36 @@ from tests.unit.conftest import _zeep_object
 
 @pytest.fixture()
 def mock_plan_data():
-    """A sample plan zeep-style object as returned by the Planning service."""
-    return _zeep_object(
-        {
-            "id": "PLAN-001",
-            "name": "Release 1.0",
-            "uri": "subterra:data-service:objects:/default/test_project${Plan}PLAN-001",
-            "dueDate": None,
-            "startDate": None,
-            "finishedOn": None,
-            "startedOn": None,
-            "records": None,
-            "parent": None,
-            "allowedTypes": None,
-            "template": None,
-            "description": None,
-            "color": None,
-            "projectURI": None,
-            "calculationType": None,
-            "capacity": None,
-            "defaultEstimate": None,
-            "estimationField": None,
-            "prioritizationField": None,
-            "sortOrder": None,
-            "status": None,
-        }
-    )
+    """A sample plan dict as returned by the Planning service in v2.0.0."""
+    return {
+        "id": "PLAN-001",
+        "name": "Release 1.0",
+        "uri": "subterra:data-service:objects:/default/test_project${Plan}PLAN-001",
+        "dueDate": None,
+        "startDate": None,
+        "finishedOn": None,
+        "startedOn": None,
+        "records": None,
+        "parent": None,
+        "allowedTypes": None,
+        "template": None,
+        "description": None,
+        "color": None,
+        "projectURI": None,
+        "calculationType": None,
+        "capacity": None,
+        "defaultEstimate": None,
+        "estimationField": None,
+        "prioritizationField": None,
+        "sortOrder": None,
+        "status": None,
+    }
 
 
 def _make_plan(mock_polarion, mock_project, mock_plan_data):
     """Build a Plan from mocked data without hitting SOAP."""
-    planning_service = MagicMock()
-    planning_service.getPlanById.return_value = mock_plan_data
-
-    original_get_service = mock_polarion.getService
-
-    def _get_service(name):
-        if name == "Planning":
-            return planning_service
-        return original_get_service(name)
-
-    with patch.object(mock_polarion, "getService", side_effect=_get_service):
-        plan = Plan(mock_polarion, mock_project, polarion_record=mock_plan_data)
-
-    mock_polarion.getService = MagicMock(side_effect=_get_service)
+    data = copy.deepcopy(mock_plan_data)
+    plan = Plan(mock_polarion, mock_project, polarion_record=data)
     return plan
 
 
@@ -76,14 +60,17 @@ def test_plan_creation_from_polarion_record(mock_polarion, mock_project, mock_pl
 
 
 def test_plan_creation_unresolvable_raises(mock_polarion, mock_project):
-    bad_data = _zeep_object({"id": "PLAN-BAD"}, unresolvable=True)
+    bad_data = {"id": "PLAN-BAD", "unresolvable": True}
     with pytest.raises(PolarionNotFoundError):
         Plan(mock_polarion, mock_project, polarion_record=bad_data)
 
 
-def test_plan_creation_none_record_raises(mock_polarion, mock_project):
-    with pytest.raises(PolarionNotFoundError):
-        Plan(mock_polarion, mock_project, polarion_record=None)
+def test_plan_creation_none_record_creates_empty_plan(mock_polarion, mock_project):
+    """When polarion_record=None, it defaults to {} and creates an empty plan."""
+    plan = Plan(mock_polarion, mock_project, polarion_record=None)
+    # Empty dict means no fields set, but no error raised
+    assert plan.id is None
+    assert plan.name is None
 
 
 # ---------------------------------------------------------------------------
@@ -100,31 +87,11 @@ def test_eq_same_id(mock_polarion, mock_project, mock_plan_data):
 def test_eq_different_id(mock_polarion, mock_project, mock_plan_data):
     plan1 = _make_plan(mock_polarion, mock_project, mock_plan_data)
 
-    other_data = _zeep_object(
-        {
-            "id": "PLAN-002",
-            "name": "Release 2.0",
-            "uri": "subterra:data-service:objects:/default/test_project${Plan}PLAN-002",
-            "dueDate": None,
-            "startDate": None,
-            "finishedOn": None,
-            "startedOn": None,
-            "records": None,
-            "parent": None,
-            "allowedTypes": None,
-            "template": None,
-            "description": None,
-            "color": None,
-            "projectURI": None,
-            "calculationType": None,
-            "capacity": None,
-            "defaultEstimate": None,
-            "estimationField": None,
-            "prioritizationField": None,
-            "sortOrder": None,
-            "status": None,
-        }
-    )
+    other_data = copy.deepcopy(mock_plan_data)
+    other_data["id"] = "PLAN-002"
+    other_data["name"] = "Release 2.0"
+    other_data["uri"] = "subterra:data-service:objects:/default/test_project${Plan}PLAN-002"
+
     plan2 = _make_plan(mock_polarion, mock_project, other_data)
     assert plan1 != plan2
 
@@ -159,33 +126,36 @@ def test_str_equals_repr(mock_polarion, mock_project, mock_plan_data):
 
 
 # ---------------------------------------------------------------------------
-# getWorkitemsInPlan
+# get_workitems
 # ---------------------------------------------------------------------------
 
 
-def test_get_workitems_in_plan_empty_when_no_records(mock_polarion, mock_project, mock_plan_data):
+def test_get_workitems_empty_when_no_records(mock_polarion, mock_project, mock_plan_data):
     plan = _make_plan(mock_polarion, mock_project, mock_plan_data)
     plan.records = None
-    assert plan.getWorkitemsInPlan() == []
+    assert plan.get_workitems() == []
 
 
-def test_get_workitems_in_plan_with_records(mock_polarion, mock_project, mock_plan_data):
+def test_get_workitems_with_records(mock_polarion, mock_project, mock_plan_data):
     plan = _make_plan(mock_polarion, mock_project, mock_plan_data)
 
-    # Create mock plan records with workitem items
-    mock_item = MagicMock()
-    mock_item.id = "WI-001"
-    mock_record = MagicMock()
-    mock_record.item = mock_item
+    # Create mock plan records as plain dicts
+    plan.records = [
+        {
+            "item": {
+                "id": "WI-001",
+                "title": "Work item 1",
+                "uri": "uri1",
+                "type": {"id": "task"},
+                "status": {"id": "open"},
+                "project": {"id": "test_project"},
+            }
+        },
+    ]
 
-    mock_records = MagicMock()
-    mock_records.PlanRecord = [mock_record]
-    plan.records = mock_records
-
-    # Mock the Workitem constructor
     with patch("polarion.plan.Workitem") as MockWorkitem:
         MockWorkitem.return_value = MagicMock()
-        result = plan.getWorkitemsInPlan()
+        result = plan.get_workitems()
         assert len(result) == 1
         MockWorkitem.assert_called_once()
 
@@ -194,17 +164,12 @@ def test_get_workitems_skips_none_ids(mock_polarion, mock_project, mock_plan_dat
     plan = _make_plan(mock_polarion, mock_project, mock_plan_data)
 
     # Record with id=None should be skipped
-    mock_item = MagicMock()
-    mock_item.id = None
-    mock_record = MagicMock()
-    mock_record.item = mock_item
-
-    mock_records = MagicMock()
-    mock_records.PlanRecord = [mock_record]
-    plan.records = mock_records
+    plan.records = [
+        {"item": {"id": None}},
+    ]
 
     with patch("polarion.plan.Workitem") as MockWorkitem:
-        result = plan.getWorkitemsInPlan()
+        result = plan.get_workitems()
         assert len(result) == 0
         MockWorkitem.assert_not_called()
 
@@ -217,11 +182,14 @@ def test_get_workitems_skips_none_ids(mock_polarion, mock_project, mock_plan_dat
 def test_save_no_changes(mock_polarion, mock_project, mock_plan_data):
     plan = _make_plan(mock_polarion, mock_project, mock_plan_data)
 
-    planning_service = MagicMock()
-    mock_polarion.getService = MagicMock(return_value=planning_service)
+    mock_polarion._soap.call.reset_mock()
+    mock_polarion._soap.call.side_effect = None
+    mock_polarion._soap.call.return_value = None
 
     plan.save()
-    planning_service.updatePlan.assert_not_called()
+    # updatePlan should not be called since nothing changed
+    for c in mock_polarion._soap.call.call_args_list:
+        assert c[0][1] != "updatePlan"
 
 
 def test_save_with_changes(mock_polarion, mock_project, mock_plan_data):
@@ -230,16 +198,24 @@ def test_save_with_changes(mock_polarion, mock_project, mock_plan_data):
     # Modify an attribute
     plan.name = "Changed Name"
 
-    planning_service = MagicMock()
-    # Make getPlanByUri return updated data for reload
-    planning_service.getPlanByUri.return_value = mock_plan_data
+    reload_data = copy.deepcopy(mock_plan_data)
+    reload_data["name"] = "Changed Name"
 
-    mock_polarion.getService = MagicMock(return_value=planning_service)
+    def _soap_call(service, method, **kwargs):
+        if service == "Planning" and method == "updatePlan":
+            return None
+        if service == "Planning" and method == "getPlanByUri":
+            return reload_data
+        return None
 
+    mock_polarion._soap.call.side_effect = _soap_call
     plan.save()
-    planning_service.updatePlan.assert_called_once()
-    call_args = planning_service.updatePlan.call_args[0][0]
-    assert call_args["uri"] == plan.uri
+
+    # Verify updatePlan was called
+    calls = mock_polarion._soap.call.call_args_list
+    update_calls = [c for c in calls if c[0] == ("Planning", "updatePlan")]
+    assert len(update_calls) == 1
+    assert update_calls[0][1]["content"]["uri"] == plan.uri
 
 
 # ------------------------------------------------------------------

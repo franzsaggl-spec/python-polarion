@@ -4,127 +4,76 @@ import json
 import logging
 import re
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable
 
-from .exceptions import PolarionConfigError
-from .polarion import Polarion
+from .client import Polarion
+from .exceptions import PolarionConfigError, PolarionNotFoundError
 from .record import Record
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
 class Config:
+    """Config structure for the XML importer.
+
+    Required fields: xml_file, url, project_id, and either token or
+    username+password.
     """
-    Config structure for xml importer.
-    """
 
-    XML_FILE = "xml_file"  # Xml file to import
-    URL = "url"  # Polarion url such as http://hostname/polarion
-    USERNAME = "username"  # username to log to polarion
-    PASSWORD = "password"  # password to log to polarion
-    TOKEN = "token"  # token to log to polarion
-    PROJECT_ID = "project_id"  # id of the project
-    TESTRUN_ID = "testrun_id"  # id of the test run (if you want to use and existing one)
-    TESTRUN_ID_GENERATOR = "testrun_id_generator"  # function that generate the testrun_id (config as parameter) if testrun_id is not provided. If not set: f'unit-{datetime.now}'
-    TESTRUN_TITLE = "testrun_title"  # title of the test run if testrun is created. If not set 'New unit test run'
-    TESTRUN_TYPE = "testrun_type"  # type of the test run if testrun is created. If not set 'xUnit Test Manual Upload'
-    TESTRUN_COMMENT = "testrun_comment"  # test run comment to add if set.
-    SKIP_MISSING_TESTCASE = "skip_missing_testcase"  # if set to True, skip result on unknown test cases
-    VERIFY_CERT = "verify_cert"  # verify or not the cert
-    USE_CACHE = "use_cache"  # verify or not the cert
-    ATTRIBUTES = [
-        XML_FILE,
-        URL,
-        USERNAME,
-        PASSWORD,
-        TOKEN,
-        PROJECT_ID,
-        TESTRUN_ID,
-        TESTRUN_ID_GENERATOR,
-        TESTRUN_TITLE,
-        TESTRUN_TYPE,
-        TESTRUN_COMMENT,
-        SKIP_MISSING_TESTCASE,
-        VERIFY_CERT,
-        USE_CACHE,
-    ]
-    MANDATORY = [XML_FILE, URL, PROJECT_ID]  # and also either user/password or token
+    xml_file: str
+    url: str
+    project_id: str
+    username: str | None = None
+    password: str | None = None
+    token: str | None = None
+    testrun_id: str | None = None
+    testrun_id_generator: Callable[[Config], str] | None = None
+    testrun_title: str = "New unit test run"
+    testrun_type: str = "xUnit Test Manual Upload"
+    testrun_comment: str | None = None
+    skip_missing_testcase: bool = False
+    verify_cert: bool | str = True
+    use_cache: bool = False
 
-    _classinitialised = False
-
-    def __new__(cls, *args: Any, **kwargs: Any) -> Config:
-        if not Config._classinitialised:
-            # Add properties dynamicaly
-            for attr in Config.ATTRIBUTES:
-                setattr(
-                    Config,
-                    attr,
-                    property(lambda self, a=attr: self._data[a] if a in self._data else Config._default_value(a)),
-                )
-            Config._classinitialised = True
-        return super().__new__(cls)
-
-    @classmethod
-    def _default_value(cls, attribute_name: str) -> Any:
-        if attribute_name == Config.TESTRUN_TITLE:
-            return "New unit test run"
-        elif attribute_name == Config.TESTRUN_TYPE:
-            return "xUnit Test Manual Upload"
-        elif attribute_name == Config.SKIP_MISSING_TESTCASE:
-            return False
-        elif attribute_name == Config.VERIFY_CERT:
-            return True
-        elif attribute_name == Config.USE_CACHE:
-            return False
-        return None
-
-    @classmethod
-    def from_json(cls, json_file: str) -> Config:
-        """
-        Create config from a json file
-        """
-        with open(json_file, "r") as f:
-            return Config(json.loads(f.read()))
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> Config:
-        """
-        Create config from a dict
-        """
-        return Config(data)
-
-    def __init__(self, data: dict[str, Any]) -> None:
-        """
-        Init from existing data
-
-        param data: dict to initialise.
-        """
-        self._data = data
+    def __post_init__(self) -> None:
         self._check_mandatory()
 
     def _check_mandatory(self) -> None:
-        for attribute in Config.MANDATORY:
-            if getattr(self, attribute) is None:
-                raise PolarionConfigError(attribute + " shall be set")
-        if getattr(self, Config.TOKEN) is None and (
-            getattr(self, Config.USERNAME) is None or getattr(self, Config.PASSWORD) is None
-        ):
-            raise PolarionConfigError(f"Shall set either {Config.USERNAME} / {Config.PASSWORD} or {Config.TOKEN}")
+        if not self.xml_file:
+            raise PolarionConfigError("xml_file shall be set")
+        if not self.url:
+            raise PolarionConfigError("url shall be set")
+        if not self.project_id:
+            raise PolarionConfigError("project_id shall be set")
+        if self.token is None and (self.username is None or self.password is None):
+            raise PolarionConfigError("Shall set either username / password or token")
+
+    @classmethod
+    def from_json(cls, json_file: str) -> Config:
+        """Create config from a JSON file."""
+        with open(json_file, "r") as f:
+            return cls(**json.loads(f.read()))
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Config:
+        """Create config from a dict."""
+        return cls(**data)
 
     def generate_test_run_id(self) -> str:
-        if getattr(self, Config.TESTRUN_ID) is None:
-            if getattr(self, Config.TESTRUN_ID_GENERATOR) is not None:
-                self._data[Config.TESTRUN_ID] = getattr(self, Config.TESTRUN_ID_GENERATOR)(self)
+        """Generate or return the test run ID."""
+        if self.testrun_id is None:
+            if self.testrun_id_generator is not None:
+                self.testrun_id = self.testrun_id_generator(self)
             else:
-                self._data[Config.TESTRUN_ID] = f"unit-{datetime.now().strftime('%Y-%m-%d-%H-%M-%S-%f')}"
-        return getattr(self, Config.TESTRUN_ID)
+                self.testrun_id = f"unit-{datetime.now().strftime('%Y-%m-%d-%H-%M-%S-%f')}"
+        return self.testrun_id
 
 
 class XmlParser:
-    """
-    Xml parser for xml_junit.xsd format
-    """
+    """XML parser for xml_junit.xsd format."""
 
     TEST_SUITES = "testsuites"
     TEST_SUITE = "testsuite"
@@ -135,8 +84,8 @@ class XmlParser:
 
     @classmethod
     def parse_root(cls, xml_file: str) -> list[dict[str, Any]]:
-        """
-        Parse Xml file
+        """Parse an XML file.
+
         :return: List of cases for the file
         """
         root = ET.parse(xml_file).getroot()
@@ -152,8 +101,8 @@ class XmlParser:
 
     @classmethod
     def _parse_suite(cls, test_suite: Any, parent: dict[str, Any], returned_cases: list[dict[str, Any]]) -> None:
-        """
-        Parse test_suite node child of parent and append returned_cases
+        """Parse test_suite node child of parent and append returned_cases.
+
         :param test_suite: test_suite node to parse
         :param parent: parent node (used for log)
         :param returned_cases: as result, append test case of the suite to this list
@@ -172,12 +121,12 @@ class XmlParser:
             raise PolarionConfigError(f"Unmanaged {XmlParser.TEST_SUITE} {test_suite.tag} in {parent['path']}")
 
     # matches expressions like [[PROPERTY|verifies=REQ-001]]
-    RE_PATTTERN = re.compile("\\[\\[PROPERTY\\|(.*)\\=(.*)\\]\\]")
+    RE_PATTERN = re.compile("\\[\\[PROPERTY\\|(.*)\\=(.*)\\]\\]")
 
     @classmethod
-    def tranform_string_properties(cls, value: str) -> list[dict[str, str]]:
+    def transform_string_properties(cls, value: str) -> list[dict[str, str]]:
         result: list[dict[str, str]] = []
-        tmp = XmlParser.RE_PATTTERN.findall(value)
+        tmp = XmlParser.RE_PATTERN.findall(value)
         for res in tmp:
             if len(res) == 2:
                 result.append({"name": res[0], "value": res[1]})
@@ -221,7 +170,7 @@ class XmlParser:
                 elif elem.tag == XmlParser.SYSOUT:
                     if "properties" not in case:
                         case.update({"properties": []})
-                    for prop in XmlParser.tranform_string_properties(elem.text):
+                    for prop in XmlParser.transform_string_properties(elem.text):
                         case["properties"].append({prop["name"]: prop["value"]})
             returned_cases.append(case)
         else:
@@ -229,18 +178,14 @@ class XmlParser:
 
     @classmethod
     def _xmlnode_name(cls, node: Any) -> str:
-        """
-        Build name of the xmlnode
-        """
+        """Build name of the xmlnode."""
         if "name" in node.attrib.keys():
             return f"{node.tag}[name={node.attrib['name']}]"
         return node.tag
 
 
 class Importer:
-    """
-    Import xml file to polarion using a config
-    """
+    """Import an XML file to Polarion using a config."""
 
     TEST_CASE_ID_CUSTOM_FIELD = "testCaseID"
     TEST_CASE_TYPE = "type:testcase"
@@ -250,9 +195,7 @@ class Importer:
 
     @classmethod
     def from_xml(cls, config: Config) -> Any:
-        """
-        Import xml file having junit.xsd structure (see documentation)
-        """
+        """Import an XML file having junit.xsd structure (see documentation)."""
         logger.info(f"Parsing test file {config.xml_file}")
         cases = XmlParser.parse_root(config.xml_file)
 
@@ -260,57 +203,64 @@ class Importer:
 
         polarion = Polarion(
             polarion_url=config.url,
-            user=config.username,
+            user=config.username or "",
             password=config.password,
             token=config.token,
             verify_certificate=config.verify_cert,
-            cache=config.use_cache,
         )
-        project = polarion.getProject(config.project_id)
+        project = polarion.get_project(config.project_id)
 
-        # Indexing existing cases with custom field '
-        test_cases = project.searchWorkitem(
+        # Index existing test cases by the testCaseID custom field
+        test_cases = project.search_workitems(
             Importer.TEST_CASE_TYPE, field_list=["id", f"customFields.{Importer.TEST_CASE_ID_CUSTOM_FIELD}"]
         )
         test_cases_from_id: dict[str, str] = {}
         for test_case in test_cases:
-            if hasattr(test_case, "customFields") and hasattr(test_case.customFields, "Custom"):
-                for custom in test_case.customFields.Custom:
-                    if getattr(custom, "key", None) == Importer.TEST_CASE_ID_CUSTOM_FIELD and hasattr(custom, "value"):
-                        test_cases_from_id[custom.value] = test_case.id
+            if isinstance(test_case, dict):
+                custom_fields = test_case.get("customFields")
+                if custom_fields is not None:
+                    cf_list = custom_fields if isinstance(custom_fields, list) else [custom_fields]
+                    for custom in cf_list:
+                        if isinstance(custom, dict):
+                            if custom.get("key") == Importer.TEST_CASE_ID_CUSTOM_FIELD:
+                                value = custom.get("value")
+                                if value is not None:
+                                    wi_id = test_case.get("id")
+                                    if wi_id is not None:
+                                        test_cases_from_id[value] = wi_id
 
         # Getting or creating test run
         if config.testrun_id is None:
             config.generate_test_run_id()
             logger.info(f"Creating testrun {config.testrun_id}")
-            test_run = project.createTestRun(config.testrun_id, config.testrun_title, config.testrun_type)
+            test_run = project.create_test_run(config.testrun_id, config.testrun_title, config.testrun_type)
         else:
             logger.info(f"Loading testrun {config.testrun_id}")
-            test_run = project.getTestRun(config.testrun_id)
+            test_run = project.get_test_run(config.testrun_id)
 
-        # Updating test run
+        # Updating test run comment
         if config.testrun_comment is not None:
             comment = "<html><body>" + config.testrun_comment + "</body></html>"
-            custom_field = test_run.getCustomField(Importer.TEST_RUN_COMMENT_CUSTOM_FIELD)
+            custom_field = test_run.get_custom_field(Importer.TEST_RUN_COMMENT_CUSTOM_FIELD)
             if custom_field is not None:
-                comment = custom_field.content
-                if comment is not None:
-                    split = comment.split("</body>")
+                content = custom_field if isinstance(custom_field, str) else custom_field.get("content", "")
+                if content is not None:
+                    split = content.split("</body>")
                     if len(split) == 2:
                         comment = split[0] + "<br>" + config.testrun_comment + "</body></html>"
                     else:
                         logger.warning(
-                            f"unable to parse properly {Importer.TEST_RUN_COMMENT_CUSTOM_FIELD} of testrun: {comment}. So it is not updated"
+                            f"unable to parse properly {Importer.TEST_RUN_COMMENT_CUSTOM_FIELD} of testrun: {content}. So it is not updated"
                         )
-            test_run.setCustomField(
+            test_run.set_custom_field(
                 Importer.TEST_RUN_COMMENT_CUSTOM_FIELD,
-                test_run._polarion.TextType(content=comment, type="text/html", contentLossy=False),
+                {"content": comment, "type": "text/html", "contentLossy": False},
             )
 
-        # cache for work items traced
+        # Cache for work items used for traceability links
         cache_for_workitems: dict[str, Any] = {}
 
-        # Filling
+        # Filling results
         logger.info("Saving results")
         for case in cases:
             if case["id"] not in test_cases_from_id.keys():
@@ -318,14 +268,14 @@ class Importer:
                     logger.warning(f"Skipping case with {Importer.TEST_CASE_ID_CUSTOM_FIELD} {case['id']}")
                     continue
                 logger.info(f"Creating case with {Importer.TEST_CASE_ID_CUSTOM_FIELD} {case['id']}")
-                wi_case = project.createWorkitem(
+                wi_case = project.create_workitem(
                     workitem_type=Importer.TEST_CASE_WI_TYPE,
-                    new_workitem_fields={Importer.TEST_CASE_WI_TITLE: case["id"]},
+                    fields={Importer.TEST_CASE_WI_TITLE: case["id"]},
                 )
-                wi_case.setCustomField(key=Importer.TEST_CASE_ID_CUSTOM_FIELD, value=case["id"])
+                wi_case.set_custom_field(key=Importer.TEST_CASE_ID_CUSTOM_FIELD, value=case["id"])
             else:
-                wi_case = project.getWorkitem(test_cases_from_id[case["id"]])
-            test_run.addTestcase(wi_case)
+                wi_case = project.get_workitem(test_cases_from_id[case["id"]])
+            test_run.add_test_case(wi_case)
 
             if "time" in case.keys():
                 test_run.records[-1].duration = case["time"]
@@ -334,18 +284,18 @@ class Importer:
                 test_run.records[-1].executed = case["timestamp"]
 
             if "failure" in case.keys():
-                test_run.records[-1].setResult(Record.ResultType.FAILED, case["failure"])
+                test_run.records[-1].set_result(Record.ResultType.FAILED, case["failure"])
             elif "error" in case.keys():
-                test_run.records[-1].setResult(Record.ResultType.BLOCKED, case["error"])
+                test_run.records[-1].set_result(Record.ResultType.BLOCKED, case["error"])
             elif "skipped" in case.keys():
-                test_run.records[-1].setResult(Record.ResultType.NOTTESTED, case["skipped"])
+                test_run.records[-1].set_result(Record.ResultType.NOTTESTED, case["skipped"])
             else:
-                test_run.records[-1].setResult(Record.ResultType.PASSED)
+                test_run.records[-1].set_result(Record.ResultType.PASSED)
 
-            # handle traceability, because of API, traqceability must use default traceability role
-            # and not the opposite one.
-            # traceability links are made using IDs or titles
-            # this implementation does not allow traceability between test cases
+            # Handle traceability -- links are made using IDs or titles.
+            # Because of the API, traceability must use the default role,
+            # not the opposite one.  This implementation does not allow
+            # traceability between test cases.
             if "properties" in case.keys():
                 for prop in case["properties"]:
                     for key in prop.keys():
@@ -355,20 +305,25 @@ class Importer:
                             linked_item = cache_for_workitems[title]
                         else:
                             try:
-                                linked_item = project.getWorkitem(prop.get(key))
-                            except Exception:
-                                linked_items = project.searchWorkitem(
+                                linked_item = project.get_workitem(prop.get(key))
+                            except PolarionNotFoundError:
+                                linked_items = project.search_workitems(
                                     query=f"title:{title}", field_list=["id", "title"]
                                 )
-                                if len(linked_items) > 0 and linked_items[0]["title"] == title:
-                                    linked_item = linked_items[0]
-                                    # work item is reload to avoid isues of class not correctly loaded by search work item
-                                    linked_item = project.getWorkitem(linked_item["id"])
+                                if len(linked_items) > 0:
+                                    first = linked_items[0]
+                                    first_title = first.get("title") if isinstance(first, dict) else None
+                                    if first_title == title:
+                                        first_id = first.get("id") if isinstance(first, dict) else None
+                                        if first_id is not None:
+                                            linked_item = project.get_workitem(first_id)
+                                    else:
+                                        logger.error(f"impossible to link {wi_case.id} to {title}")
                                 else:
-                                    logger.error(f"impossible to link{wi_case.id} to {title}")
+                                    logger.error(f"impossible to link {wi_case.id} to {title}")
                                 cache_for_workitems[title] = linked_item
                         if linked_item is not None:
-                            wi_case.addLinkedItem(linked_item, key)
+                            wi_case.add_linked_item(linked_item, key)
 
         logger.info(f"Results saved in {config.url}/#/project/{config.project_id}/testrun?id={config.testrun_id}")
 
@@ -376,23 +331,21 @@ class Importer:
 
 
 class ResultExporter:
-    """
-    Export an object as a json (tested with a testrun)
-    """
+    """Export a Polarion object (e.g. Testrun) as a JSON-serialisable dict."""
 
-    _ZEEP_HANDLERS: dict[str, Callable] = {
-        "ArrayOfTestRecord": lambda cls, obj: cls._make_serialisable(obj.TestRecord),
-        "ArrayOfCustom": lambda cls, obj: cls._make_serialisable(obj.Custom),
-        "ArrayOfEnumOptionId": lambda cls, obj: cls._make_serialisable(obj.EnumOptionId),
-        "EnumOptionId": lambda cls, obj: obj.id,
-        "Custom": lambda cls, obj: {"key": obj.key, "value": cls._make_serialisable(obj.value)},
-        "Text": lambda cls, obj: obj.content,
-        "Testrun": lambda cls, obj: cls._make_serialisable(dict(obj._polarion_test_run.__dict__["__values__"]).copy()),
-        "TestRecord": lambda cls, obj: cls._make_serialisable(dict(obj.__dict__["__values__"]).copy()),
+    _HANDLERS: dict[str, Callable] = {
+        "Testrun": lambda cls, obj: cls._make_serialisable(
+            {k: v for k, v in obj.__dict__.items() if not k.startswith("_")}
+        ),
+        "Record": lambda cls, obj: cls._make_serialisable(
+            {k: v for k, v in obj.__dict__.items() if not k.startswith("_")}
+        ),
     }
 
     @classmethod
     def _make_serialisable(cls, obj: Any) -> Any:
+        if obj is None:
+            return None
         if isinstance(obj, (str, bool)):
             return obj
         if isinstance(obj, (int, float)):
@@ -403,9 +356,7 @@ class ResultExporter:
             return {k: cls._make_serialisable(v) for k, v in obj.items()}
         if isinstance(obj, datetime):
             return obj.strftime("%d-%m-%Y-%H-%M-%S-%f")
-        if obj is None:
-            return None
-        handler = cls._ZEEP_HANDLERS.get(type(obj).__name__)
+        handler = cls._HANDLERS.get(type(obj).__name__)
         if handler:
             return handler(cls, obj)
         logger.warning("Not processed type: %s having value: %s", type(obj), obj)

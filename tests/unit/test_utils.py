@@ -1,4 +1,4 @@
-"""Tests for utility functions in polarion.utils."""
+"""Tests for utility functions in polarion.utils (v2.0.0 API)."""
 
 import os
 

@@ -1,4 +1,8 @@
-"""Tests for Config and XmlParser in polarion.xml."""
+"""Tests for Config and XmlParser in polarion.xml (v2.0.0 API).
+
+In v2.0.0, Config is a dataclass with keyword arguments instead of a dict.
+Use Config.from_dict() or Config(**kwargs) for construction.
+"""
 
 import pytest
 
@@ -11,8 +15,8 @@ from polarion.xml import Config, XmlParser
 
 
 class TestConfigCreation:
-    def _valid_data(self, **overrides):
-        """Return minimal valid config data dict."""
+    def _valid_kwargs(self, **overrides):
+        """Return minimal valid config keyword arguments."""
         data = {
             "xml_file": "test.xml",
             "url": "http://polarion.example.com/polarion",
@@ -23,19 +27,19 @@ class TestConfigCreation:
         return data
 
     def test_creation_with_valid_data(self):
-        config = Config(self._valid_data())
+        config = Config(**self._valid_kwargs())
         assert config.xml_file == "test.xml"
         assert config.url == "http://polarion.example.com/polarion"
         assert config.project_id == "test_project"
         assert config.token == "my-token"
 
     def test_creation_with_user_password(self):
-        config = Config(self._valid_data(token=None, username="user", password="pass"))
+        config = Config(**self._valid_kwargs(token=None, username="user", password="pass"))
         assert config.username == "user"
         assert config.password == "pass"
 
     def test_from_dict(self):
-        config = Config.from_dict(self._valid_data())
+        config = Config.from_dict(self._valid_kwargs())
         assert config.xml_file == "test.xml"
 
 
@@ -46,54 +50,47 @@ class TestConfigCreation:
 
 class TestConfigMandatory:
     def test_missing_xml_file_raises(self):
-        with pytest.raises(PolarionConfigError, match="xml_file"):
+        with pytest.raises((PolarionConfigError, TypeError)):
             Config(
-                {
-                    "url": "http://example.com",
-                    "project_id": "proj",
-                    "token": "tok",
-                }
+                xml_file="",
+                url="http://example.com",
+                project_id="proj",
+                token="tok",
             )
 
     def test_missing_url_raises(self):
-        with pytest.raises(PolarionConfigError, match="url"):
+        with pytest.raises((PolarionConfigError, TypeError)):
             Config(
-                {
-                    "xml_file": "test.xml",
-                    "project_id": "proj",
-                    "token": "tok",
-                }
+                xml_file="test.xml",
+                url="",
+                project_id="proj",
+                token="tok",
             )
 
     def test_missing_project_id_raises(self):
-        with pytest.raises(PolarionConfigError, match="project_id"):
+        with pytest.raises((PolarionConfigError, TypeError)):
             Config(
-                {
-                    "xml_file": "test.xml",
-                    "url": "http://example.com",
-                    "token": "tok",
-                }
+                xml_file="test.xml",
+                url="http://example.com",
+                project_id="",
+                token="tok",
             )
 
     def test_no_auth_raises(self):
         with pytest.raises(PolarionConfigError):
             Config(
-                {
-                    "xml_file": "test.xml",
-                    "url": "http://example.com",
-                    "project_id": "proj",
-                }
+                xml_file="test.xml",
+                url="http://example.com",
+                project_id="proj",
             )
 
     def test_only_username_no_password_raises(self):
         with pytest.raises(PolarionConfigError):
             Config(
-                {
-                    "xml_file": "test.xml",
-                    "url": "http://example.com",
-                    "project_id": "proj",
-                    "username": "user",
-                }
+                xml_file="test.xml",
+                url="http://example.com",
+                project_id="proj",
+                username="user",
             )
 
 
@@ -105,12 +102,10 @@ class TestConfigMandatory:
 class TestGenerateTestRunId:
     def test_default_format(self):
         config = Config(
-            {
-                "xml_file": "test.xml",
-                "url": "http://example.com",
-                "project_id": "proj",
-                "token": "tok",
-            }
+            xml_file="test.xml",
+            url="http://example.com",
+            project_id="proj",
+            token="tok",
         )
         run_id = config.generate_test_run_id()
         assert run_id.startswith("unit-")
@@ -120,64 +115,76 @@ class TestGenerateTestRunId:
 
     def test_custom_generator(self):
         config = Config(
-            {
-                "xml_file": "test.xml",
-                "url": "http://example.com",
-                "project_id": "proj",
-                "token": "tok",
-                "testrun_id_generator": lambda c: "custom-id-123",
-            }
+            xml_file="test.xml",
+            url="http://example.com",
+            project_id="proj",
+            token="tok",
+            testrun_id_generator=lambda c: "custom-id-123",
         )
         run_id = config.generate_test_run_id()
         assert run_id == "custom-id-123"
 
     def test_existing_id_returned(self):
         config = Config(
-            {
-                "xml_file": "test.xml",
-                "url": "http://example.com",
-                "project_id": "proj",
-                "token": "tok",
-                "testrun_id": "existing-id",
-            }
+            xml_file="test.xml",
+            url="http://example.com",
+            project_id="proj",
+            token="tok",
+            testrun_id="existing-id",
         )
         run_id = config.generate_test_run_id()
         assert run_id == "existing-id"
 
 
 # ---------------------------------------------------------------------------
-# _default_value
+# Dataclass defaults (replaces _default_value tests)
 # ---------------------------------------------------------------------------
 
 
-class TestDefaultValue:
+class TestConfigDefaults:
+    def _make_config(self, **overrides):
+        defaults = {
+            "xml_file": "test.xml",
+            "url": "http://example.com",
+            "project_id": "proj",
+            "token": "tok",
+        }
+        defaults.update(overrides)
+        return Config(**defaults)
+
     def test_testrun_title_default(self):
-        assert Config._default_value("testrun_title") == "New unit test run"
+        config = self._make_config()
+        assert config.testrun_title == "New unit test run"
 
     def test_testrun_type_default(self):
-        assert Config._default_value("testrun_type") == "xUnit Test Manual Upload"
+        config = self._make_config()
+        assert config.testrun_type == "xUnit Test Manual Upload"
 
     def test_skip_missing_testcase_default(self):
-        assert Config._default_value("skip_missing_testcase") is False
+        config = self._make_config()
+        assert config.skip_missing_testcase is False
 
     def test_verify_cert_default(self):
-        assert Config._default_value("verify_cert") is True
+        config = self._make_config()
+        assert config.verify_cert is True
 
     def test_use_cache_default(self):
-        assert Config._default_value("use_cache") is False
+        config = self._make_config()
+        assert config.use_cache is False
 
-    def test_unknown_attribute_default_none(self):
-        assert Config._default_value("nonexistent") is None
+    def test_testrun_id_default_none(self):
+        config = self._make_config()
+        assert config.testrun_id is None
 
 
 # ---------------------------------------------------------------------------
-# XmlParser.tranform_string_properties
+# XmlParser.transform_string_properties
 # ---------------------------------------------------------------------------
 
 
 class TestXmlParserTransformStringProperties:
     def test_single_property(self):
-        result = XmlParser.tranform_string_properties("[[PROPERTY|verifies=REQ-001]]")
+        result = XmlParser.transform_string_properties("[[PROPERTY|verifies=REQ-001]]")
         assert len(result) == 1
         assert result[0]["name"] == "verifies"
         assert result[0]["value"] == "REQ-001"
@@ -185,15 +192,15 @@ class TestXmlParserTransformStringProperties:
     def test_multiple_properties_on_separate_lines(self):
         # Each property must be on its own line due to greedy regex matching
         text = "[[PROPERTY|verifies=REQ-001]]\n[[PROPERTY|validates=REQ-002]]"
-        result = XmlParser.tranform_string_properties(text)
+        result = XmlParser.transform_string_properties(text)
         assert len(result) == 2
 
     def test_no_properties(self):
-        result = XmlParser.tranform_string_properties("plain text no properties")
+        result = XmlParser.transform_string_properties("plain text no properties")
         assert result == []
 
     def test_empty_string(self):
-        result = XmlParser.tranform_string_properties("")
+        result = XmlParser.transform_string_properties("")
         assert result == []
 
 

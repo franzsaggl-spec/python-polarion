@@ -1,35 +1,48 @@
+"""Polarion User model."""
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from .base.polarion_object import PolarionObject
 from .exceptions import PolarionNotFoundError
 from .factory import Creator
 
 if TYPE_CHECKING:
-    from .polarion import Polarion
+    from .client import Polarion
 
 
-class User:
+class User(PolarionObject):
+    """A Polarion user.
+
+    :param polarion: Polarion client instance
+    :param polarion_record: User data from SOAP response
+    :param uri: User URI for loading from server
     """
-    A polarion user
 
-    :param polarion: Polarion client object
-    :param polarion_record: The user record
+    id: str
+    name: str
+    email: str | None = None
+    description: str | None = None
+    avatarUrl: str | None = None
+    disabledNotifications: bool | None = None
 
-    """
-
-    def __init__(self, polarion: Polarion, polarion_record: Optional[Any] = None, uri: Optional[str] = None) -> None:
-        self._polarion = polarion
+    def __init__(
+        self,
+        polarion: Polarion,
+        polarion_record: dict[str, Any] | None = None,
+        uri: str | None = None,
+    ) -> None:
+        super().__init__(polarion, None, None, uri)
         self._polarion_record = polarion_record
-        self._uri = uri
 
         if uri is not None:
-            service = self._polarion.getService("Project")
-            self._polarion_record = service.getUserByUri(self._uri)
+            self._polarion_record = self._polarion._soap.call("Project", "getUserByUri", uri=self._uri)
 
-        if self._polarion_record is not None and not self._polarion_record.unresolvable:
-            PolarionObject._populate_attrs(self, self._polarion_record)
+        if self._polarion_record is not None and isinstance(self._polarion_record, dict):
+            if self._polarion_record.get("unresolvable"):
+                raise PolarionNotFoundError("User not found")
+            self._populate_from_dict(self, self._polarion_record)
         else:
             raise PolarionNotFoundError("User not retrieved from Polarion")
 
@@ -45,5 +58,5 @@ class User:
 
 
 class UserCreator(Creator):
-    def createFromUri(self, polarion: Polarion, project: Any, uri: str) -> User:
+    def create_from_uri(self, polarion: Polarion, project: Any, uri: str) -> User:
         return User(polarion, None, uri)

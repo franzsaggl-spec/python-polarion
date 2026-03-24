@@ -1,18 +1,19 @@
+"""Polarion Document model."""
+
 from __future__ import annotations
 
 import copy
 import logging
-from typing import TYPE_CHECKING, Optional
-
-from zeep import xsd
-from zeep.helpers import serialize_object
+from typing import TYPE_CHECKING, Any
 
 from .base.custom_fields import CustomFields
 from .exceptions import PolarionNotFoundError
-from .factory import Creator, createFromUri
+from .factory import Creator, create_from_uri
+from .soap.envelope import NIL
+from .utils import ensure_list, extract_id
 
 if TYPE_CHECKING:
-    from .polarion import Polarion
+    from .client import Polarion
     from .project import Project
     from .workitem import Workitem
 
@@ -20,152 +21,147 @@ logger = logging.getLogger(__name__)
 
 
 class Document(CustomFields):
+    """A Polarion document (module).
+
+    :param polarion: Polarion client
+    :param project: Project instance
+    :param uri: Document URI
+    :param location: Document location path
+    """
+
     _default_summary_fields = ["moduleFolder", "title", "moduleName"]
 
+    # Declared attributes
+    title: str | None = None
+    moduleName: str | None = None
+    moduleFolder: str | None = None
+    structureLinkRole: Any = None
+    homePageContent: Any = None
+    status: Any = None
+    type: Any = None
+
     def __init__(
-        self, polarion: Polarion, project: Project, uri: Optional[str] = None, location: Optional[str] = None
+        self,
+        polarion: Polarion,
+        project: Project,
+        uri: str | None = None,
+        location: str | None = None,
     ) -> None:
-        """
-        Create a Document.
-        :param polarion: Polarion client object
-        :param project: Polarion Project object
-        :param uri: Polarion uri (first possibility to get a document)
-        :param location: Document location (second possibility to get a document)
-        """
         super().__init__(polarion, project, uri=uri)
-        self._uri = uri
-        self._project = project
-        self._polarion = polarion
+        self._polarion_data: dict[str, Any] = {}
+        self._original_data: dict[str, Any] = {}
 
         if self._uri is not None:
-            service = self._polarion.getService("Tracker")
-            self._polarion_document = service.getModuleByUri(self._uri)
-            if self._polarion_document is not None and self._polarion_document.unresolvable:
-                raise PolarionNotFoundError(f"Cannot find document at URI {self._uri} in project {self._project.id}")
+            self._polarion_data = self._polarion._soap.call("Tracker", "getModuleByUri", uri=self._uri)
+            if isinstance(self._polarion_data, dict) and self._polarion_data.get("unresolvable"):
+                raise PolarionNotFoundError(f"Cannot find document at URI {self._uri}")
 
         elif location is not None:
-            service = self._polarion.getService("Tracker")
-            self._polarion_document = service.getModuleByLocation(self._project.id, location)
-            if self._polarion_document is not None and self._polarion_document.unresolvable:
-                raise PolarionNotFoundError(
-                    f"Cannot find document at location {location} in project {self._project.id}"
-                )
-            self._uri = self._polarion_document.uri
-
-        self._buildFromPolarion()
-
-    def _buildFromPolarion(self) -> None:
-        if self._polarion_document is not None and not self._polarion_document.unresolvable:
-            self._original_polarion = copy.deepcopy(self._polarion_document)
-            self._populate_attrs(self, self._polarion_document)
-
-    def _reloadFromPolarion(self) -> None:
-        service = self._polarion.getService("Tracker")
-        self._polarion_document = service.getModuleByUri(self._uri)
-        self._buildFromPolarion()
-
-    def exportDocumentToPDF(self) -> bytes:
-        """
-        Download a PDF export of the document.
-        :return: bytes
-        """
-        service = self._polarion.getService("Tracker")
-        pdf_props_obj = self._polarion.PdfProperties("A4", "Portrait", True, True, True, True)
-        serialized_pdf_props = serialize_object(pdf_props_obj)
-        pdf = service.exportDocumentToPDF(self._uri, serialized_pdf_props)
-        return pdf
-
-    def getWorkitemUris(self) -> list[str]:
-        """
-        Get the uris of all workitems in the document.
-        :return: string[]
-        """
-        service = self._polarion.getService("Tracker")
-        workitems = service.getModuleWorkItemUris(self._uri, None, True)
-        return workitems
-
-    def getWorkitems(self) -> list[Workitem]:
-        """
-        Get all complete workitems.
-        That may take some time on a large document.
-        :return: Workitem[]
-        """
-        workitems = []
-        workitem_uris = self.getWorkitemUris()
-        for workitem_uri in workitem_uris:
-            try:
-                workitems.append(createFromUri(self._polarion, self._project, workitem_uri))
-            except Exception as e:
-                logger.warning("Skipping unresolvable workitem URI %s: %s", workitem_uri, e)
-        return workitems
-
-    def getTopLevelWorkitem(self) -> Workitem:
-        """
-        Get the top level workitem, which is usually the title.
-        :return: Workitem
-        """
-        return createFromUri(self._polarion, self._project, self.getWorkitemUris()[0])
-
-    def getChildren(self, workitem: Workitem) -> list[Workitem]:
-        """
-        Gets the children of a workitem in the document.
-
-        :param workitem: Workitem to get children for
-        :return: List of workitems
-        """
-        workitem_children = []
-        if workitem.linkedWorkItemsDerived is not None:
-            document_uris = self.getWorkitemUris()
-            children = (
-                w
-                for w in workitem.linkedWorkItemsDerived.LinkedWorkItem
-                if w.role.id == self.structureLinkRole.id and w.workItemURI in document_uris
+            self._polarion_data = self._polarion._soap.call(
+                "Tracker", "getModuleByLocation", projectId=self._project.id, locationPath=location
             )
-            for child in children:
-                workitem_children.append(createFromUri(self._polarion, self._project, child.workItemURI))
-        return workitem_children
+            if isinstance(self._polarion_data, dict) and self._polarion_data.get("unresolvable"):
+                raise PolarionNotFoundError(f"Cannot find document at location {location}")
+            if isinstance(self._polarion_data, dict):
+                self._uri = self._polarion_data.get("uri")
 
-    def getParent(self, workitem: Workitem) -> Optional[Workitem]:
-        """
-        Gets the parent of a workitem in the document.
+        self._build_from_polarion()
 
-        :param workitem: Workitem to get parent for
-        :return: Parent workitem, None if no parent
-        """
-        parent = None
-        if workitem.linkedWorkItems is not None:
-            document_uris = self.getWorkitemUris()
-            parent_uri = [
-                w
-                for w in workitem.linkedWorkItems.LinkedWorkItem
-                if w.role.id == self.structureLinkRole.id and w.workItemURI in document_uris
-            ][0]
-            parent = createFromUri(self._polarion, self._project, parent_uri.workItemURI)
-        return parent
+    def _build_from_polarion(self) -> None:
+        if isinstance(self._polarion_data, dict) and not self._polarion_data.get("unresolvable"):
+            self._original_data = copy.deepcopy(self._polarion_data)
+            self._populate_from_dict(self, self._polarion_data)
 
-    def addHeading(self, title: str, parent_workitem: Optional[Workitem] = None) -> Workitem:
-        """
-        Adds a heading to a document
+    def _reload_from_polarion(self) -> None:
+        self._polarion_data = self._polarion._soap.call("Tracker", "getModuleByUri", uri=self._uri)
+        self._build_from_polarion()
 
-        :param title: Title of the heading
-        :param parent_workitem: Parent workitem in the document hierarchy, set to None to create it on top level
-        :return: Heading workitem
+    def export_to_pdf(self) -> bytes:
+        """Export the document as PDF.
+
+        :return: PDF content as bytes
         """
-        heading = self._project.createWorkitem("heading")
+        from .types import PdfProperties
+
+        pdf_props = PdfProperties()
+        return self._polarion._soap.call(
+            "Tracker", "exportDocumentToPDF", moduleURI=self._uri, pdfProperties=pdf_props.to_soap()
+        )
+
+    def get_workitem_uris(self) -> list[str]:
+        """Get URIs of all work items in this document."""
+        result = self._polarion._soap.call(
+            "Tracker", "getModuleWorkItemUris", moduleURI=self._uri, baselineRevision=None, deep=True
+        )
+        return result if isinstance(result, list) else []
+
+    def get_workitems(self) -> list[Workitem]:
+        """Get all work items in this document (may be slow for large documents)."""
+        workitems = []
+        for uri in self.get_workitem_uris():
+            try:
+                workitems.append(create_from_uri(self._polarion, self._project, uri))
+            except Exception as e:
+                logger.warning("Skipping unresolvable workitem URI %s: %s", uri, e)
+        return workitems
+
+    def get_top_level_workitem(self) -> Workitem:
+        """Get the top-level work item (usually the document title)."""
+        uris = self.get_workitem_uris()
+        if not uris:
+            raise PolarionNotFoundError("Document has no work items")
+        return create_from_uri(self._polarion, self._project, uris[0])
+
+    def get_children(self, workitem: Workitem) -> list[Workitem]:
+        """Get children of a work item within this document.
+
+        :param workitem: Parent work item
+        """
+        children = []
+        derived = getattr(workitem, "linkedWorkItemsDerived", None)
+        if derived is not None:
+            doc_uris = self.get_workitem_uris()
+            struct_role_id = extract_id(self.structureLinkRole)
+            for w in ensure_list(derived):
+                if isinstance(w, dict):
+                    wi_uri = w.get("workItemURI", "")
+                    if extract_id(w.get("role", {})) == struct_role_id and wi_uri in doc_uris:
+                        try:
+                            children.append(create_from_uri(self._polarion, self._project, wi_uri))
+                        except Exception as e:
+                            logger.warning("Skipping unresolvable child workitem %s: %s", wi_uri, e)
+        return children
+
+    def get_parent(self, workitem: Workitem) -> Workitem | None:
+        """Get the parent of a work item within this document.
+
+        :param workitem: Child work item
+        """
+        linked = getattr(workitem, "linkedWorkItems", None)
+        if linked is not None:
+            doc_uris = self.get_workitem_uris()
+            struct_role_id = extract_id(self.structureLinkRole)
+            for w in ensure_list(linked):
+                if isinstance(w, dict):
+                    wi_uri = w.get("workItemURI", "")
+                    if extract_id(w.get("role", {})) == struct_role_id and wi_uri in doc_uris:
+                        return create_from_uri(self._polarion, self._project, wi_uri)
+        return None
+
+    def add_heading(self, title: str, parent_workitem: Workitem | None = None) -> Workitem:
+        """Add a heading to the document.
+
+        :param title: Heading title
+        :param parent_workitem: Parent work item (None for top-level)
+        """
+        heading = self._project.create_workitem("heading")
         heading.title = title
         heading.save()
-        heading.moveToDocument(self, parent_workitem)
+        heading.move_to_document(self, parent_workitem)
         return heading
 
-    def isCustomFieldAllowed(self, _: str) -> bool:
-        """
-        Checks if the custom field of a given key is allowed.
-
-        The Polarion interface to get allowed custom fields only supports work items.
-
-        :return: If the field is allowed
-        :rtype: bool
-        """
+    def is_custom_field_allowed(self, _: str) -> bool:
+        """Documents allow all custom fields."""
         return True
 
     def reuse(
@@ -174,56 +170,59 @@ class Document(CustomFields):
         target_location: str,
         target_name: str,
         target_title: str,
-        link_role: Optional[str] = "derived_from",
-        derived_fields: Optional[list[str]] = None,
+        link_role: str | None = "derived_from",
+        derived_fields: list[str] | None = None,
     ) -> Document:
-        """
-        Reuse this document in a different project.
+        """Reuse this document in another project.
 
-        :param target_project_id: The target project id
-        :param target_location: Location of the target document
-        :param target_name: The target document's name
-        :param target_title: Title of the target document
-        :param link_role: Link role of the derived documents, None for no linking
-        :param derived_fields: List of fields to be derived in the target document
-        :return: The new document
+        :param target_project_id: Target project ID
+        :param target_location: Target document location
+        :param target_name: Target document name
+        :param target_title: Target document title
+        :param link_role: Link role for derived documents (None for no linking)
+        :param derived_fields: Fields to derive in target
         """
-        # only set these values when linking is required but field are not provided
         if derived_fields is None and link_role is not None:
             derived_fields = ["title", "description"]
-        service = self._polarion.getService("Tracker")
-        new_uri = service.reuseDocument(
-            self._uri, target_project_id, target_location, target_name, target_title, True, link_role, derived_fields
+        new_uri = self._polarion._soap.call(
+            "Tracker",
+            "reuseDocument",
+            moduleURI=self._uri,
+            targetProjectId=target_project_id,
+            targetLocation=target_location,
+            targetModuleName=target_name,
+            targetModuleTitle=target_title,
+            copyWorkItems=True,
+            linkRole=link_role,
+            derivedFields=derived_fields,
         )
-        return createFromUri(self._polarion, self._project, new_uri)
+        return create_from_uri(self._polarion, self._project, new_uri)
 
-    def update(self, revision: Optional[str] = None, auto_suspect: bool = False) -> None:
-        """
-        Update a reused document to a revision of the source document.
+    def update_derived(self, revision: str | None = None, auto_suspect: bool = False) -> None:
+        """Update a reused document to a revision of the source.
 
-        :param revision: Source document revision
-        :param auto_suspect: If set to True, changed workitems will mark their links as suspect
+        :param revision: Source document revision (None for latest)
+        :param auto_suspect: Mark changed links as suspect
         """
-        service = self._polarion.getService("Tracker")
-        service.updateDerivedDocument(self._uri, revision if revision is not None else xsd.const.Nil, auto_suspect)
+        self._polarion._soap.call(
+            "Tracker",
+            "updateDerivedDocument",
+            moduleURI=self._uri,
+            revision=revision if revision is not None else NIL,
+            autoSuspect=auto_suspect,
+        )
 
     def save(self) -> None:
-        """
-        Update the document in polarion
-        """
-        updated_item = self._build_update_dict(self, self._polarion_document, self._original_polarion)
-        if updated_item:
-            updated_item["uri"] = self._uri
-            service = self._polarion.getService("Tracker")
-            service.updateModule(updated_item)
-            self._reloadFromPolarion()
+        """Save document changes to Polarion."""
+        changed = self._collect_changes(self, self._polarion_data, self._original_data)
+        if changed:
+            changed["uri"] = self._uri
+            self._polarion._soap.call("Tracker", "updateModule", content=changed)
+            self._reload_from_polarion()
 
     def delete(self) -> None:
-        """
-        Deletes a document
-        """
-        service = self._polarion.getService("Tracker")
-        service.deleteModule(self.uri)
+        """Delete this document from Polarion."""
+        self._polarion._soap.call("Tracker", "deleteModule", moduleURI=self.uri)
 
     def __repr__(self) -> str:
         return f"Polarion document {self._truncate(self.title)} in {self.moduleFolder}"
@@ -232,5 +231,5 @@ class Document(CustomFields):
 
 
 class DocumentCreator(Creator):
-    def createFromUri(self, polarion: Polarion, project: Project, uri: str) -> Document:
+    def create_from_uri(self, polarion: Polarion, project: Project, uri: str) -> Document:
         return Document(polarion, project, uri)
