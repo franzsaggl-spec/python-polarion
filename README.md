@@ -38,13 +38,34 @@ with PolarionClient(url="https://polarion.example.com/polarion", username="user"
 
 ## Current implementation status
 
-This release provides a compileable v3 skeleton with explicit contracts:
+v3 now includes:
 
 - typed models
 - service interfaces/signatures
-- parser/transport scaffolding
+- parser layer and SOAP transport wiring
+- baseline service implementations for projects, users, workitems, documents, plans, and test runs
 
-Service method implementations are intentionally staged and will follow in subsequent PRs.
+## Live integration test harness (opt-in)
+
+A live smoke test harness is available under `tests/integration/`.
+
+It is disabled by default and only runs when explicitly enabled:
+
+```bash
+pytest tests/integration --run-integration -v
+```
+
+Required env vars:
+
+- `POLARION_URL`
+- `POLARION_USERNAME`
+- `POLARION_PASSWORD` **or** `POLARION_TOKEN`
+- `POLARION_PROJECT_ID`
+
+Optional:
+
+- `POLARION_VERIFY_SSL` (`true|false`, default `true`)
+- `POLARION_TIMEOUT` (seconds, default `30`)
 
 ## Public entrypoint
 
