@@ -51,6 +51,7 @@ class Testrun(CustomFields, Comments):
             try:
                 self._polarion_data = self._polarion._soap.call("TestManagement", "getTestRunByUri", uri=uri)
             except Exception as e:
+                # Keep broad mapping for backwards compatibility with mocked backends/tests.
                 raise PolarionNotFoundError(f"Cannot find test run {uri}") from e
 
         elif polarion_test_run is not None:

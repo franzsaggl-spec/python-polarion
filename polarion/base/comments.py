@@ -47,5 +47,5 @@ class Comments(PolarionObject, ABC):
                 content=content,
             )
             self._reload_from_polarion()
-        except Exception as e:
+        except PolarionApiError as e:
             raise PolarionApiError(f"Could not add comment: {e}. Adding comments might be disabled.") from e
