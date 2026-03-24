@@ -10,7 +10,9 @@ from .base import ServiceBase
 class TestRunsService(ServiceBase):
     def get(self, project_id: str, test_run_id: str) -> TestRun:
         raw = self.transport.call("TestManagement", "getTestRunById", projectId=project_id, id=test_run_id)
-        return parse_testrun(raw)
+        tr = parse_testrun(raw)
+        self.require_identifier(tr.id, context=f"test run {test_run_id}")
+        return tr
 
     def get_by_uri(self, uri: str) -> TestRun:
         raw = self.transport.call("TestManagement", "getTestRunByUri", uri=uri)
