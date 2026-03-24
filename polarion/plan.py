@@ -18,6 +18,7 @@ class Plan(PolarionObject):
     """
     A polarion Plan
     """
+    _default_summary_fields = ['id', 'name', 'startDate', 'dueDate']
 
     def __init__(self, polarion: Polarion, project: Optional[Project], polarion_record: Optional[Any] = None, uri: Optional[str] = None, id: Optional[str] = None, new_plan_name: Optional[str] = None, new_plan_id: Optional[str] = None, new_plan_parent: Optional[Plan] = None,
                  new_plan_template: Optional[str] = None) -> None:
@@ -146,11 +147,6 @@ class Plan(PolarionObject):
     def getWorkitemsInPlan(self) -> list[Workitem]:
         """
         Get all workitems from this plan
-
-        ⚠️ Performance warning: Fetches all workitems in the plan as full objects.
-        For plans with many workitems, consider using project.searchWorkitem() with a
-        query filter to fetch only the workitems you need.
-
         :return: Array of workitems
         """
         if self.records is None:
@@ -194,35 +190,8 @@ class Plan(PolarionObject):
             return NotImplemented
         return self.id == other.id
 
-    def to_dict(self, fields: Optional[list[str]] = None) -> dict[str, Any]:
-        """
-        Return a dictionary representation of the plan.
-
-        :param fields: List of field names to include. If None, returns minimal summary with: id, name, startDate, dueDate
-        :return: Dictionary with requested fields
-        :rtype: dict
-        """
-        if fields is None:
-            # Return minimal summary for context efficiency
-            fields = ['id', 'name', 'startDate', 'dueDate']
-
-        result = {}
-        for field in fields:
-            if hasattr(self, field):
-                value = getattr(self, field)
-                # Convert complex objects to simple representations
-                if hasattr(value, '__dict__') and not isinstance(value, (str, int, float, bool, date, datetime)):
-                    if hasattr(value, 'id'):
-                        result[field] = value.id
-                    else:
-                        result[field] = str(value)
-                else:
-                    result[field] = value
-
-        return result
-
     def __repr__(self) -> str:
-        return f'{self.name} ({self.id})'
+        return f'{self._truncate(self.name)} ({self.id})'
 
     __str__ = __repr__
 
