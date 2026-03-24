@@ -6,7 +6,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from .document import Document
-from .exceptions import PolarionNotFoundError
+from .exceptions import PolarionApiError, PolarionFieldError, PolarionNotFoundError
 from .factory import create_from_uri
 from .plan import Plan
 from .testrun import Testrun
@@ -32,7 +32,7 @@ class Project:
 
         try:
             self.polarion_data = self.polarion._soap.call("Project", "getProject", projectId=self.id)
-        except Exception as e:
+        except PolarionApiError as e:
             raise PolarionNotFoundError(f"Could not find project {project_id}") from e
 
         if isinstance(self.polarion_data, dict) and not self.polarion_data.get("unresolvable"):
@@ -50,7 +50,7 @@ class Project:
         for user_data in project_users:
             try:
                 users.append(User(self.polarion, user_data))
-            except Exception as e:
+            except (PolarionApiError, PolarionNotFoundError, PolarionFieldError) as e:
                 name = user_data.get("name", "unknown") if isinstance(user_data, dict) else "unknown"
                 logger.warning("Could not retrieve %s: %s", name, e)
         return users
@@ -128,7 +128,7 @@ class Project:
             if wi_id:
                 try:
                     workitems.append(Workitem(self.polarion, self, str(wi_id)))
-                except Exception as e:
+                except (PolarionApiError, PolarionNotFoundError, PolarionFieldError) as e:
                     logger.warning("Skipping unresolvable workitem %s: %s", wi_id, e)
         return workitems
 

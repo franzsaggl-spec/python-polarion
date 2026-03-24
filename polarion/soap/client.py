@@ -111,7 +111,7 @@ class SoapClient:
             self._extract_session(response_bytes)
         except (PolarionConnectionError, PolarionApiError):
             raise
-        except Exception as e:
+        except (etree.XMLSyntaxError, TypeError, ValueError) as e:
             raise PolarionAuthError(f"Could not log in for user {user}") from e
 
     def login_with_token(self, user: str, token: str) -> None:
@@ -134,7 +134,7 @@ class SoapClient:
             self._extract_session(response_bytes)
         except (PolarionConnectionError, PolarionApiError):
             raise
-        except Exception as e:
+        except (etree.XMLSyntaxError, TypeError, ValueError) as e:
             raise PolarionAuthError(f"Could not log in with token for user {user}") from e
 
     def logout(self) -> None:
@@ -142,6 +142,7 @@ class SoapClient:
         try:
             self.call("Session", "endSession")
         except Exception as e:
+            # Best-effort cleanup: session may already be gone or transport may fail.
             logger.debug("Logout failed (session may already be expired): %s", e)
 
     def call(self, service: str, method: str, **params: Any) -> Any:

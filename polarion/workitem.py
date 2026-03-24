@@ -94,7 +94,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
                 self._polarion_data = self._polarion._soap.call("Tracker", "getWorkItemByUri", uri=self._uri)
                 if isinstance(self._polarion_data, dict):
                     self._id = self._polarion_data.get("id")
-            except Exception as e:
+            except PolarionApiError as e:
                 raise PolarionNotFoundError(f"Cannot find workitem at URI {self._uri}") from e
 
         elif id is not None:
@@ -105,7 +105,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
                     projectId=self._project.id,
                     workitemId=self._id,
                 )
-            except Exception as e:
+            except PolarionApiError as e:
                 raise PolarionNotFoundError(f"Cannot find workitem {self._id} in project {self._project.id}") from e
 
         elif new_workitem_type is not None:
@@ -148,7 +148,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
             raise
         except PolarionApiError as e:
             logger.debug("Could not check required fields (may not be supported): %s", e)
-        except Exception as e:
+        except (TypeError, ValueError, KeyError) as e:
             logger.warning("Unexpected error checking required fields: %s", e)
 
         if fields is not None:
@@ -178,7 +178,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
                 self._polarion_test_steps = self._polarion._soap.call(
                     "TestManagement", "getTestSteps", workitemURI=self.uri
                 )
-        except Exception as e:
+        except PolarionApiError as e:
             logger.warning("Could not fetch test steps for workitem %s: %s", self._id, e)
 
         if self._polarion_test_steps is not None and isinstance(self._polarion_test_steps, dict):
@@ -221,7 +221,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
                 user_data = a.get("user", {})
                 try:
                     users.append(User(self._polarion, user_data if isinstance(user_data, dict) else {"id": user_data}))
-                except Exception as e:
+                except (PolarionApiError, PolarionNotFoundError, PolarionFieldError) as e:
                     logger.warning("Skipping unresolvable approver user %s: %s", user_data, e)
         return users
 
@@ -250,7 +250,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
         for u in user_list:
             try:
                 users.append(User(self._polarion, u if isinstance(u, dict) else {"id": u}))
-            except Exception as e:
+            except (PolarionApiError, PolarionNotFoundError, PolarionFieldError) as e:
                 logger.warning("Skipping unresolvable assigned user %s: %s", u, e)
         return users
 
@@ -276,6 +276,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
         try:
             return self._project.get_enum(f"{self.type['id'] if isinstance(self.type, dict) else self.type}-{suffix}")
         except Exception as e:
+            # Keep enum lookup failure non-fatal for compatibility with partial/mocked backends.
             logger.warning("Could not get %s enum: %s", suffix, e)
             return []
 
@@ -296,7 +297,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
         try:
             result = self._polarion._soap.call("Tracker", "getCustomFieldKeys", workitemURI=self.uri)
             return result if isinstance(result, list) else []
-        except Exception as e:
+        except PolarionApiError as e:
             logger.warning("Could not get custom field keys: %s", e)
             return []
 
@@ -433,7 +434,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
                                 Workitem(self._polarion, self._project, uri=li["workItemURI"]),
                             )
                         )
-                    except Exception as e:
+                    except (PolarionApiError, PolarionNotFoundError, PolarionFieldError) as e:
                         logger.warning("Skipping unresolvable linked item %s: %s", li.get("workItemURI"), e)
         return linked
 
@@ -593,7 +594,7 @@ class Workitem(CustomFields, Comments, BatchSaveMixin):
             history = self._polarion._soap.call("Tracker", "getRevisions", workitemURI=self.uri)
             if isinstance(history, list) and history:
                 return int(history[-1])
-        except Exception as e:
+        except (PolarionApiError, TypeError, ValueError) as e:
             raise PolarionApiError("Could not get revision") from e
         raise PolarionApiError("Could not get revision")
 
