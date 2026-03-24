@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date, datetime
 from typing import Any, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -8,6 +9,9 @@ if TYPE_CHECKING:
 
 
 class PolarionObject:
+    _default_summary_fields: list[str] = []
+    _field_accessors: dict[str, Any] = {}
+
     def __init__(self, polarion: Polarion, project: Optional[Project], id: Optional[str] = None, uri: Optional[str] = None) -> None:
         self._polarion = polarion
         self._project = project
@@ -33,6 +37,36 @@ class PolarionObject:
                 if getattr(obj, key) != getattr(original_obj, key):
                     updated[key] = getattr(obj, key)
         return updated
+
+    @staticmethod
+    def _truncate(text: str, max_len: int = 50) -> str:
+        """Truncate text with ellipsis if longer than max_len."""
+        if len(text) > max_len:
+            return text[:max_len] + '...'
+        return text
+
+    def to_dict(self, fields: Optional[list[str]] = None) -> dict[str, Any]:
+        """
+        Return a dictionary representation with selected fields.
+
+        :param fields: Fields to include. Defaults to class-specific summary fields.
+        :return: Dictionary with requested fields
+        """
+        if fields is None:
+            fields = self._default_summary_fields
+
+        result = {}
+        for field in fields:
+            if field in self._field_accessors:
+                result[field] = self._field_accessors[field](self)
+            elif hasattr(self, field):
+                value = getattr(self, field)
+                if hasattr(value, '__dict__') and not isinstance(value, (str, int, float, bool, date, datetime)):
+                    result[field] = value.id if hasattr(value, 'id') else str(value)
+                else:
+                    result[field] = value
+
+        return result
 
     def _reloadFromPolarion(self) -> None:
         raise NotImplementedError
