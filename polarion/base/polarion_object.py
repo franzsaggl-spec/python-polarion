@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from polarion.polarion import Polarion
@@ -8,7 +8,9 @@ if TYPE_CHECKING:
 
 
 class PolarionObject:
-    def __init__(self, polarion: Polarion, project: Optional[Project], id: Optional[str] = None, uri: Optional[str] = None) -> None:
+    def __init__(
+        self, polarion: Polarion, project: Optional[Project], id: Optional[str] = None, uri: Optional[str] = None
+    ) -> None:
         self._polarion = polarion
         self._project = project
         self._id = id
@@ -23,7 +25,9 @@ class PolarionObject:
                 setattr(target, name, value[key])
 
     @staticmethod
-    def _build_update_dict(obj: Any, polarion_obj: Any, original_obj: Any, skip: Optional[set[str]] = None) -> dict[str, Any]:
+    def _build_update_dict(
+        obj: Any, polarion_obj: Any, original_obj: Any, skip: Optional[set[str]] = None
+    ) -> dict[str, Any]:
         """Build a dict of changed attributes by diffing current vs original state."""
         updated: dict[str, Any] = {}
         for attr, value in polarion_obj.__dict__.items():
@@ -43,6 +47,7 @@ class PolarionObject:
 
 class PostponeSaveMixin:
     """Mixin providing context manager support for deferred save."""
+
     _postpone_save: bool = False
 
     def __enter__(self):

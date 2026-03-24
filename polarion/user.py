@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 from .base.polarion_object import PolarionObject
 from .exceptions import PolarionNotFoundError
@@ -25,13 +25,13 @@ class User:
         self._uri = uri
 
         if uri is not None:
-            service = self._polarion.getService('Project')
+            service = self._polarion.getService("Project")
             self._polarion_record = service.getUserByUri(self._uri)
 
         if self._polarion_record is not None and not self._polarion_record.unresolvable:
             PolarionObject._populate_attrs(self, self._polarion_record)
         else:
-            raise PolarionNotFoundError('User not retrieved from Polarion')
+            raise PolarionNotFoundError("User not retrieved from Polarion")
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, User):
@@ -39,7 +39,7 @@ class User:
         return self.id == other.id
 
     def __repr__(self) -> str:
-        return f'{self.name} ({self.id})'
+        return f"{self.name} ({self.id})"
 
     __str__ = __repr__
 

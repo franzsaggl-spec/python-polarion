@@ -1,14 +1,14 @@
 import unittest
+from datetime import datetime
+from unittest import mock
+
+from keys import polarion_password, polarion_project_id, polarion_url, polarion_user
+
 from polarion.polarion import Polarion
 from polarion.project import Project
-from keys import polarion_user, polarion_password, polarion_url, polarion_project_id
-from time import sleep
-from unittest import mock
-from datetime import datetime
 
 
 class TestPolarionProject(unittest.TestCase):
-
     @classmethod
     def setUpClass(cls):
         cls.pol = Polarion(polarion_url, polarion_user, polarion_password)
@@ -19,17 +19,17 @@ class TestPolarionProject(unittest.TestCase):
 
     def test_non_existing_project(self):
         # create project
-        self.assertRaises(Exception, self.pol.getProject, 'fake_project')
+        self.assertRaises(Exception, self.pol.getProject, "fake_project")
 
-    @mock.patch('polarion.workitem.Workitem.__init__')
+    @mock.patch("polarion.workitem.Workitem.__init__")
     def test_get_workitem(self, mock_workitem):
         mock_workitem.return_value = None
 
-        self.project.getWorkitem('FAKE-001')
-        mock_workitem.assert_called_with(self.pol, self.project, 'FAKE-001')
+        self.project.getWorkitem("FAKE-001")
+        mock_workitem.assert_called_with(self.pol, self.project, "FAKE-001")
 
-        self.project.getWorkitem('FAKE-002')
-        mock_workitem.assert_called_with(self.pol, self.project, 'FAKE-002')
+        self.project.getWorkitem("FAKE-002")
+        mock_workitem.assert_called_with(self.pol, self.project, "FAKE-002")
 
     def test_get_all_users(self):
         all_users = self.project.getUsers()
@@ -41,13 +41,12 @@ class TestPolarionProject(unittest.TestCase):
         self.assertIsNotNone(single_user)
 
     def test_get_non_existent_user(self):
-        single_user = self.project.findUser(
-            'kjbhjkhbk,fbdkdjsbfgd')  # no user should be found
+        single_user = self.project.findUser("kjbhjkhbk,fbdkdjsbfgd")  # no user should be found
 
         self.assertIsNone(single_user)
 
     def test_workitem_create_and_search(self):
-        new_workitem = self.project.createWorkitem('task')
+        new_workitem = self.project.createWorkitem("task")
 
         self.assertIsNotNone(new_workitem)
 
@@ -61,18 +60,18 @@ class TestPolarionProject(unittest.TestCase):
         self.assertIn(polarion_project_id, self.project.__repr__())
 
     def test_non_existent_project(self):
-        self.assertRaises(Exception, Project.__init__, self.pol, 'fake_id')
+        self.assertRaises(Exception, Project.__init__, self.pol, "fake_id")
 
     def test_non_existent_testrun(self):
-        self.assertRaises(Exception, self.project.getTestRun, 'fake_id')
+        self.assertRaises(Exception, self.project.getTestRun, "fake_id")
 
     def test_get_enum(self):
-        status = self.project.getEnum('status')
+        status = self.project.getEnum("status")
 
         self.assertGreater(len(status), 0)
 
     def test_testrun_search(self):
-        test_runs = self.project.searchTestRuns('')
+        test_runs = self.project.searchTestRuns("")
 
         self.assertGreater(len(test_runs), 0)
 
@@ -80,16 +79,17 @@ class TestPolarionProject(unittest.TestCase):
         self.assertIsNotNone(test_run)
 
     def test_create_testrun(self):
-        test_run = self.project.createTestRun('unit-' + datetime.now().strftime("%d-%m-%Y-%H-%M-%S-%f"), 'New unit test run', 'unittest-01')
+        test_run = self.project.createTestRun(
+            "unit-" + datetime.now().strftime("%d-%m-%Y-%H-%M-%S-%f"), "New unit test run", "unittest-01"
+        )
         self.assertIsNotNone(test_run)
 
-    @mock.patch('polarion.plan.Plan.__init__')
+    @mock.patch("polarion.plan.Plan.__init__")
     def test_get_plan(self, mock_plan):
         mock_plan.return_value = None
 
-        self.project.getPlan('FAKE-001')
-        mock_plan.assert_called_with(self.pol, self.project, id='FAKE-001')
+        self.project.getPlan("FAKE-001")
+        mock_plan.assert_called_with(self.pol, self.project, id="FAKE-001")
 
-        self.project.getPlan('FAKE-002')
-        mock_plan.assert_called_with(self.pol, self.project, id='FAKE-002')
-        
+        self.project.getPlan("FAKE-002")
+        mock_plan.assert_called_with(self.pol, self.project, id="FAKE-002")

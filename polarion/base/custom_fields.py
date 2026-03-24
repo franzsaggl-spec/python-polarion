@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 from polarion.base.polarion_object import PolarionObject
 from polarion.exceptions import PolarionFieldError
@@ -34,7 +34,8 @@ class CustomFields(PolarionObject, ABC):
             self.customFields.Custom.append(self._polarion.CustomType(key=key, value=value))
         else:
             custom_field = next(
-                (custom_field for custom_field in self.customFields.Custom if custom_field["key"] == key), None)
+                (custom_field for custom_field in self.customFields.Custom if custom_field["key"] == key), None
+            )
             if custom_field is not None:
                 # custom field is there and we can update the value
                 custom_field.value = value
@@ -51,7 +52,8 @@ class CustomFields(PolarionObject, ABC):
         """
         if self.customFields is not None:
             custom_field = next(
-                (custom_field for custom_field in self.customFields.Custom if custom_field["key"] == key), None)
+                (custom_field for custom_field in self.customFields.Custom if custom_field["key"] == key), None
+            )
             if custom_field is not None:
                 return custom_field.value
         return None

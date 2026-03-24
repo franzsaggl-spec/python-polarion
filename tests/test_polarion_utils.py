@@ -1,12 +1,12 @@
 import unittest
 from unittest.mock import patch
-from polarion.utils import *
+
+from polarion.utils import DescriptionParser, strip_html
 
 
 class TestPolarionUtils(unittest.TestCase):
-
     def test_clean_html(self):
-        core_text = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc eu libero ipsum. Nullam eget augue'
+        core_text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc eu libero ipsum. Nullam eget augue"
         html_text = f'<p><img src="bla"/>{core_text}</p></br>'
 
         clean_text = strip_html(html_text)
@@ -31,15 +31,7 @@ class TestPolarionUtils(unittest.TestCase):
                         </table>
                         <br/>"""
 
-        expected_output =  ('big text\n'
-                            'normal text\n'
-                            'a=b\n'
-                            '+---+---+\n'
-                            '| 1 | 2 |\n'
-                            '+===+===+\n'
-                            '| 3 | 4 |\n'
-                            '+---+---+\n')
-
+        expected_output = "big text\nnormal text\na=b\n+---+---+\n| 1 | 2 |\n+===+===+\n| 3 | 4 |\n+---+---+\n"
 
         parser = DescriptionParser()
 
@@ -47,16 +39,18 @@ class TestPolarionUtils(unittest.TestCase):
         actual_output = parser.data.replace(" ", "")  # remove spaces for easier comparison
         expected_output = expected_output.replace(" ", "")  # remove spaces for easier comparison
 
-        self.assertEqual(expected_output, actual_output, msg='Parser result deviated from expected.')
+        self.assertEqual(expected_output, actual_output, msg="Parser result deviated from expected.")
 
-    @patch('polarion.project.Project')
+    @patch("polarion.project.Project")
     def test_links(self, project_mock):
-        html_text = '<span class="polarion-rte-link" data-type="workItem" id="fake" data-item-id="PYTH-510" data-option-id="long"></span>' \
-                    '<span class="polarion-rte-link" data-type="workItem" id="fake" data-item-id="PYTH-510" data-option-id="short"></span>' \
-                    '</span> <br/>'
+        html_text = (
+            '<span class="polarion-rte-link" data-type="workItem" id="fake" data-item-id="PYTH-510" data-option-id="long"></span>'
+            '<span class="polarion-rte-link" data-type="workItem" id="fake" data-item-id="PYTH-510" data-option-id="short"></span>'
+            "</span> <br/>"
+        )
 
-        workitem_pyth_510_title = 'title of 510'
-        expected_text = f'{workitem_pyth_510_title}PYTH-510'
+        workitem_pyth_510_title = "title of 510"
+        expected_text = f"{workitem_pyth_510_title}PYTH-510"
         project_mock.getWorkitem.return_value = workitem_pyth_510_title
 
         # test with a project mock supplied.\
@@ -64,14 +58,16 @@ class TestPolarionUtils(unittest.TestCase):
         parser = DescriptionParser(project_mock)
         parser.feed(html_text)
 
-        self.assertEqual(expected_text.strip(), parser.data.strip(),
-                         msg='Parser workitem text did not match using project to find title')
+        self.assertEqual(
+            expected_text.strip(),
+            parser.data.strip(),
+            msg="Parser workitem text did not match using project to find title",
+        )
 
         # with no project supplied it should default back to short
-        expected_text = f'PYTH-510PYTH-510'
+        expected_text = "PYTH-510PYTH-510"
 
         parser = DescriptionParser()
         parser.feed(html_text)
 
-        self.assertEqual(expected_text.strip(), parser.data.strip(), msg='Parser workitem text did not match')
-
+        self.assertEqual(expected_text.strip(), parser.data.strip(), msg="Parser workitem text did not match")

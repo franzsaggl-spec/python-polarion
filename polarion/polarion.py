@@ -8,21 +8,21 @@ from typing import Any, Optional, Union
 from urllib.parse import urljoin, urlparse
 
 import requests
-from zeep import Client, CachingClient
+from zeep import CachingClient, Client
 from zeep.plugins import HistoryPlugin
 from zeep.transports import Transport
 
 from .exceptions import (
+    PolarionApiError,
     PolarionAuthError,
     PolarionConnectionError,
-    PolarionApiError,
 )
 from .project import Project
 from .workitem import Workitem
 
 logger = logging.getLogger(__name__)
 
-_baseServiceUrl = 'ws/services'
+_baseServiceUrl = "ws/services"
 
 
 _SESSION_CHECK_INTERVAL = 300  # seconds
@@ -42,10 +42,18 @@ class Polarion:
     :param proxy: Set to a proxy address to use a proxy, use the format: proxy='ip:port'
     """
 
-    def __init__(self, polarion_url: str, user: str, password: Optional[str] = None, token: Optional[str] = None,
-                 static_service_list: bool = False, verify_certificate: Union[bool, str] = True,
-                 svn_repo_url: Optional[str] = None, proxy: Optional[str] = None,
-                 cache: bool = False) -> None:
+    def __init__(
+        self,
+        polarion_url: str,
+        user: str,
+        password: Optional[str] = None,
+        token: Optional[str] = None,
+        static_service_list: bool = False,
+        verify_certificate: Union[bool, str] = True,
+        svn_repo_url: Optional[str] = None,
+        proxy: Optional[str] = None,
+        cache: bool = False,
+    ) -> None:
         self.user = user
         self.password = password
         self.token = token
@@ -56,14 +64,12 @@ class Polarion:
         self.cache = cache
         self.transport = None
         if proxy is not None:
-            self.proxy = {
-                'http': proxy,
-                'https': proxy}
+            self.proxy = {"http": proxy, "https": proxy}
 
         self.services = {}
 
-        if not self.url.endswith('/'):
-            self.url += '/'
+        if not self.url.endswith("/"):
+            self.url += "/"
         self.url = urljoin(self.url, _baseServiceUrl)
 
         if static_service_list:
@@ -82,62 +88,54 @@ class Polarion:
         :return: None
         """
         try:
-            self.services['Session']['client'].service.endSession()
+            self.services["Session"]["client"].service.endSession()
         except Exception:
             pass
 
     def _getStaticServices(self) -> None:
-        default_services = ['Session', 'Project', 'Tracker',
-                            'Builder', 'Planning', 'TestManagement', 'Security']
-        service_base_url = self.url + '/'
+        default_services = ["Session", "Project", "Tracker", "Builder", "Planning", "TestManagement", "Security"]
+        service_base_url = self.url + "/"
         for service in default_services:
-            self.services[service] = {'url': urljoin(
-                service_base_url, service + 'WebService')}
+            self.services[service] = {"url": urljoin(service_base_url, service + "WebService")}
 
     def _getServices(self) -> None:
         """
         Parse the list of services available in the overview
         """
         service_overview = requests.get(self.url, verify=self.verify_certificate)
-        service_base_url = self.url + '/'
+        service_base_url = self.url + "/"
         if service_overview.ok:
             services = re.findall(r"(\w+)WebService", service_overview.text)
             for service in services:
                 if service not in self.services:
-                    self.services[service] = {'url': urljoin(
-                        service_base_url, service + 'WebService')}
+                    self.services[service] = {"url": urljoin(service_base_url, service + "WebService")}
 
     def _createSession(self) -> None:
         """
         Starts a session with the specified user/password
         """
-        if 'Session' in self.services:
+        if "Session" in self.services:
             self.history = HistoryPlugin()
-            self.services['Session']['client'] = self.get_client('Session',[self.history])
+            self.services["Session"]["client"] = self.get_client("Session", [self.history])
             if self.proxy is not None:
-                self.services['Session']['client'].transport.session.proxies = self.proxy
+                self.services["Session"]["client"].transport.session.proxies = self.proxy
             try:
                 self.sessionHeaderElement = None
                 self.sessionCookieJar = None
                 if self.token is not None:
-                    self.services['Session']['client'].service.logInWithToken(
-                        "AccessToken", "", self.token)
+                    self.services["Session"]["client"].service.logInWithToken("AccessToken", "", self.token)
                 else:
-                    self.services['Session']['client'].service.logIn(
-                        self.user, self.password)
-                tree = self.history.last_received['envelope'].getroottree()
-                self.sessionHeaderElement = tree.find(
-                    './/{http://ws.polarion.com/session}sessionID')
-                self.sessionCookieJar = self.services['Session']['client'].transport.session.cookies
+                    self.services["Session"]["client"].service.logIn(self.user, self.password)
+                tree = self.history.last_received["envelope"].getroottree()
+                self.sessionHeaderElement = tree.find(".//{http://ws.polarion.com/session}sessionID")
+                self.sessionCookieJar = self.services["Session"]["client"].transport.session.cookies
             except Exception as err:
                 logger.error(err)
-                raise PolarionAuthError(
-                    f'Could not log in to Polarion for user {self.user}') from err
+                raise PolarionAuthError(f"Could not log in to Polarion for user {self.user}") from err
             if self.sessionHeaderElement is not None:
                 self._updateServices()
         else:
-            raise PolarionConnectionError(
-                'Cannot login because WSDL has no SessionWebService')
+            raise PolarionConnectionError("Cannot login because WSDL has no SessionWebService")
 
     def get_client(self, service: str, plugins: Optional[list] = None) -> Union[Client, CachingClient]:
         if plugins is None:
@@ -149,9 +147,9 @@ class Polarion:
         transport = Transport(session=session)
 
         if self.cache:
-            client = CachingClient(self.services[service]['url'] + '?wsdl', plugins=plugins, transport=transport)
+            client = CachingClient(self.services[service]["url"] + "?wsdl", plugins=plugins, transport=transport)
         else:
-            client = Client(self.services[service]['url'] + '?wsdl', plugins=plugins, transport=transport)
+            client = Client(self.services[service]["url"] + "?wsdl", plugins=plugins, transport=transport)
         return client
 
     def _updateServices(self) -> None:
@@ -159,59 +157,65 @@ class Polarion:
         Updates all services with the correct session ID
         """
         if self.sessionHeaderElement is None:
-            raise PolarionAuthError('Cannot update services when not logged in')
+            raise PolarionAuthError("Cannot update services when not logged in")
         for service in self.services:
-            if service != 'Session':
-                if 'client' not in service:
-                    self.services[service]['client'] = self.get_client(service)
-                self.services[service]['client'].set_default_soapheaders(
-                    [self.sessionHeaderElement])
+            if service != "Session":
+                if "client" not in service:
+                    self.services[service]["client"] = self.get_client(service)
+                self.services[service]["client"].set_default_soapheaders([self.sessionHeaderElement])
                 if self.proxy is not None:
-                    self.services[service]['client'].transport.session.proxies = self.proxy
-                self.services[service]['client'].transport.session.cookies = self.sessionCookieJar
-            if service == 'Tracker':
-                if hasattr(self.services[service]['client'].service, 'addComment'):
+                    self.services[service]["client"].transport.session.proxies = self.proxy
+                self.services[service]["client"].transport.session.cookies = self.sessionCookieJar
+            if service == "Tracker":
+                if hasattr(self.services[service]["client"].service, "addComment"):
                     # allow addComment to be send without title, needed for reply comments
-                    self.services[service]['client'].service.addComment._proxy._binding.get(
-                        'addComment').input.body.type._element[1].nillable = True
-                    self.services[service]['client'].service.getModuleWorkItemUris._proxy._binding.get(
-                        'getModuleWorkItemUris').input.body.type._element[1].nillable = True
-                    self.services[service]['client'].service.moveWorkItemToDocument._proxy._binding.get(
-                        'moveWorkItemToDocument').input.body.type._element[2].nillable = True
-                    self.services[service]['client'].service.reuseDocument._proxy._binding.get(
-                        'reuseDocument').input.body.type._element[6].nillable = True
-                    self.services[service]['client'].service.reuseDocument._proxy._binding.get(
-                        'reuseDocument').input.body.type._element[7].nillable = True
-            if service == 'Planning':
-                self.services[service]['client'].service.createPlan._proxy._binding.get(
-                    'createPlan').input.body.type._element[3].nillable = True
+                    self.services[service]["client"].service.addComment._proxy._binding.get(
+                        "addComment"
+                    ).input.body.type._element[1].nillable = True
+                    self.services[service]["client"].service.getModuleWorkItemUris._proxy._binding.get(
+                        "getModuleWorkItemUris"
+                    ).input.body.type._element[1].nillable = True
+                    self.services[service]["client"].service.moveWorkItemToDocument._proxy._binding.get(
+                        "moveWorkItemToDocument"
+                    ).input.body.type._element[2].nillable = True
+                    self.services[service]["client"].service.reuseDocument._proxy._binding.get(
+                        "reuseDocument"
+                    ).input.body.type._element[6].nillable = True
+                    self.services[service]["client"].service.reuseDocument._proxy._binding.get(
+                        "reuseDocument"
+                    ).input.body.type._element[7].nillable = True
+            if service == "Planning":
+                self.services[service]["client"].service.createPlan._proxy._binding.get(
+                    "createPlan"
+                ).input.body.type._element[3].nillable = True
 
-            if service == 'TestManagement':
-                self.services[service]['client'].service.setTestSteps._proxy._binding.get(
-                    'setTestSteps').input.body.type._element[1].min_occurs = 0
+            if service == "TestManagement":
+                self.services[service]["client"].service.setTestSteps._proxy._binding.get(
+                    "setTestSteps"
+                ).input.body.type._element[1].min_occurs = 0
 
     def _getTypes(self) -> None:
         # TODO: check if the namespace is always the same
-        self.EnumOptionIdType = self.getTypeFromService('TestManagement', 'ns3:EnumOptionId')
-        self.TextType = self.getTypeFromService('TestManagement', 'ns1:Text')
-        self.ArrayOfTestStepResultType = self.getTypeFromService('TestManagement', 'ns4:ArrayOfTestStepResult')
-        self.ArrayOfTestStepType = self.getTypeFromService('TestManagement', 'ns4:ArrayOfTestStep')
-        self.TestStepType = self.getTypeFromService('TestManagement', 'ns4:TestStep')
-        self.ArrayOfTextType = self.getTypeFromService('TestManagement', 'ns1:ArrayOfText')
-        self.TestStepResultType = self.getTypeFromService('TestManagement', 'ns4:TestStepResult')
-        self.TestRecordType = self.getTypeFromService('TestManagement', 'ns4:TestRecord')
-        self.WorkItemType = self.getTypeFromService('Tracker', 'ns2:WorkItem')
-        self.LinkedWorkItemType = self.getTypeFromService('Tracker', 'ns2:LinkedWorkItem')
-        self.LinkedWorkItemArrayType = self.getTypeFromService('Tracker', 'ns2:ArrayOfLinkedWorkItem')
-        self.ArrayOfCustomType = self.getTypeFromService('Tracker', 'ns2:ArrayOfCustom')
-        self.CustomType = self.getTypeFromService('Tracker', 'ns2:Custom')
-        self.ArrayOfEnumOptionIdType = self.getTypeFromService('Tracker', 'ns2:ArrayOfEnumOptionId')
-        self.ArrayOfSubterraURIType = self.getTypeFromService('Tracker', 'ns1:ArrayOfSubterraURI')
+        self.EnumOptionIdType = self.getTypeFromService("TestManagement", "ns3:EnumOptionId")
+        self.TextType = self.getTypeFromService("TestManagement", "ns1:Text")
+        self.ArrayOfTestStepResultType = self.getTypeFromService("TestManagement", "ns4:ArrayOfTestStepResult")
+        self.ArrayOfTestStepType = self.getTypeFromService("TestManagement", "ns4:ArrayOfTestStep")
+        self.TestStepType = self.getTypeFromService("TestManagement", "ns4:TestStep")
+        self.ArrayOfTextType = self.getTypeFromService("TestManagement", "ns1:ArrayOfText")
+        self.TestStepResultType = self.getTypeFromService("TestManagement", "ns4:TestStepResult")
+        self.TestRecordType = self.getTypeFromService("TestManagement", "ns4:TestRecord")
+        self.WorkItemType = self.getTypeFromService("Tracker", "ns2:WorkItem")
+        self.LinkedWorkItemType = self.getTypeFromService("Tracker", "ns2:LinkedWorkItem")
+        self.LinkedWorkItemArrayType = self.getTypeFromService("Tracker", "ns2:ArrayOfLinkedWorkItem")
+        self.ArrayOfCustomType = self.getTypeFromService("Tracker", "ns2:ArrayOfCustom")
+        self.CustomType = self.getTypeFromService("Tracker", "ns2:Custom")
+        self.ArrayOfEnumOptionIdType = self.getTypeFromService("Tracker", "ns2:ArrayOfEnumOptionId")
+        self.ArrayOfSubterraURIType = self.getTypeFromService("Tracker", "ns1:ArrayOfSubterraURI")
         self._PdfProperties = None
         try:
-            self._PdfProperties = self.getTypeFromService('Tracker', 'ns2:PdfProperties')
+            self._PdfProperties = self.getTypeFromService("Tracker", "ns2:PdfProperties")
         except Exception:
-            logger.debug('PDF properties not available in this Polarion version')
+            logger.debug("PDF properties not available in this Polarion version")
 
     @property
     def PdfProperties(self):
@@ -221,7 +225,7 @@ class Polarion:
         @return: PdfProperties
         """
         if self._PdfProperties is None:
-            raise PolarionApiError('PDF not supported in this Polarion version')
+            raise PolarionApiError("PDF not supported in this Polarion version")
         return self._PdfProperties
 
     def hasService(self, name: str) -> bool:
@@ -237,25 +241,25 @@ class Polarion:
         # periodically check if the session is still valid
         if time.time() - self._last_session_check > _SESSION_CHECK_INTERVAL:
             try:
-                self.services['Project']['client'].service.getUser(self.user)
+                self.services["Project"]["client"].service.getUser(self.user)
                 self._last_session_check = time.time()
             except Exception:
                 self._createSession()
                 self._last_session_check = time.time()
 
         if name in self.services:
-            return self.services[name]['client'].service
+            return self.services[name]["client"].service
         else:
-            raise PolarionConnectionError(f'Service {name} does not exist')
+            raise PolarionConnectionError(f"Service {name} does not exist")
 
     def getTypeFromService(self, name: str, type_name: str) -> Any:
         """
         Get a SOAP type from a named service.
         """
         if name in self.services:
-            return self.services[name]['client'].get_type(type_name)
+            return self.services[name]["client"].get_type(type_name)
         else:
-            raise PolarionConnectionError(f'Service {name} does not exist')
+            raise PolarionConnectionError(f"Service {name} does not exist")
 
     def getProject(self, project_id: str) -> Project:
         """Get a Polarion project
@@ -284,21 +288,20 @@ class Polarion:
             workitems.append(Workitem(self, project, uri=result.uri))
         return workitems
 
-
     def downloadFromSvn(self, url: str) -> bytes:
         download_url = url
         if self.svn_repo_url is not None:
             orig_url = urlparse(url)
-            orig_url_path_without_repo = '/'.join(orig_url.path.split('/')[2:])
+            orig_url_path_without_repo = "/".join(orig_url.path.split("/")[2:])
             new_root_url = urlparse(self.svn_repo_url)
-            download_url = f'{new_root_url.scheme}://{new_root_url.netloc}/{new_root_url.path.strip("/")}/{orig_url_path_without_repo}'
+            download_url = f"{new_root_url.scheme}://{new_root_url.netloc}/{new_root_url.path.strip('/')}/{orig_url_path_without_repo}"
 
         resp = requests.get(download_url, auth=(self.user, self.password))
         if resp.ok:
             return resp.content
-        raise PolarionApiError(f'Could not download attachment from {url}. Got error {resp.status_code}: {resp.reason}')
+        raise PolarionApiError(f"Could not download attachment from {url}. Got error {resp.status_code}: {resp.reason}")
 
     def __repr__(self) -> str:
-        return f'Polarion client for {self.url} with user {self.user}'
+        return f"Polarion client for {self.url} with user {self.user}"
 
     __str__ = __repr__

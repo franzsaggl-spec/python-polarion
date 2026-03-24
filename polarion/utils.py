@@ -12,7 +12,6 @@ from polarion.project import Project
 
 
 class DescriptionParser(HTMLParser, ABC):
-
     def __init__(self, polarion_project: Optional[Project] = None) -> None:
         """
         A HTMLParser with to cleaen the HTML tags from a string.
@@ -22,7 +21,7 @@ class DescriptionParser(HTMLParser, ABC):
         """
         super(DescriptionParser, self).__init__()
         self._polarion_project = polarion_project
-        self._data = ''
+        self._data = ""
         self._table_start: tuple[int, int] | None = None
         self._table_end: tuple[int, int] | None = None
 
@@ -40,7 +39,7 @@ class DescriptionParser(HTMLParser, ABC):
         @return: None
         """
         super(DescriptionParser, self).reset()
-        self._data = ''
+        self._data = ""
         self._table_start = None
         self._table_end = None
 
@@ -64,13 +63,13 @@ class DescriptionParser(HTMLParser, ABC):
         """
         attributes = dict(attrs)
 
-        if tag == 'span' and 'class' in attributes:
-            if attributes['class'] == 'polarion-rte-link':
+        if tag == "span" and "class" in attributes:
+            if attributes["class"] == "polarion-rte-link":
                 self._handle_polarion_rte_link(attributes)
-            elif attributes['class'] == 'polarion-rte-formula':
+            elif attributes["class"] == "polarion-rte-formula":
                 self._handle_polarion_rte_formula(attributes)
 
-        if tag == 'table':
+        if tag == "table":
             self._table_start = self.getpos()
 
     def handle_endtag(self, tag: str) -> None:
@@ -79,7 +78,7 @@ class DescriptionParser(HTMLParser, ABC):
         @param tag: Name of the tag
         @return: None
         """
-        if tag == 'table':
+        if tag == "table":
             self._handle_table()
 
     def _handle_table(self) -> None:
@@ -89,16 +88,16 @@ class DescriptionParser(HTMLParser, ABC):
         """
         # get the table HTML content
         self._table_end = self.getpos()
-        table_content = self.rawdata.split('\n')
-        correct_lines = table_content[self._table_start[0] - 1:self._table_end[0]]
+        table_content = self.rawdata.split("\n")
+        correct_lines = table_content[self._table_start[0] - 1 : self._table_end[0]]
         # iterate over table elements and parse to 2d array
-        table = ElementTree.XML(''.join(correct_lines))
+        table = ElementTree.XML("".join(correct_lines))
         content: list[list[str | None]] = []
-        for tr in table.iter('tr'):
+        for tr in table.iter("tr"):
             content.append([])
-            for th in tr.iter('th'):
+            for th in tr.iter("th"):
                 content[-1].append(th.text)
-            for td in tr.iter('td'):
+            for td in tr.iter("td"):
                 content[-1].append(td.text)
         self._data += Texttable().add_rows(content).draw()
         self._table_start = None
@@ -110,11 +109,12 @@ class DescriptionParser(HTMLParser, ABC):
         @param attributes: attributes to the link tag
         @return: None
         """
-        if attributes['data-option-id'] == 'short' or (
-                attributes['data-option-id'] == 'long' and self._polarion_project is None):
-            self._data += attributes['data-item-id']
+        if attributes["data-option-id"] == "short" or (
+            attributes["data-option-id"] == "long" and self._polarion_project is None
+        ):
+            self._data += attributes["data-item-id"]
         else:
-            linked_item = self._polarion_project.getWorkitem(attributes['data-item-id'])
+            linked_item = self._polarion_project.getWorkitem(attributes["data-item-id"])
             self._data += str(linked_item)
 
     def _handle_polarion_rte_formula(self, attributes: dict[str, str | None]) -> None:
@@ -123,7 +123,8 @@ class DescriptionParser(HTMLParser, ABC):
         @param attributes: attributes to the formula tag
         @return: None
         """
-        self._data += attributes['data-source']
+        self._data += attributes["data-source"]
+
 
 def save_bytes_as_pdf(input_bytes: bytes, filename: str) -> None:
     """
@@ -131,10 +132,11 @@ def save_bytes_as_pdf(input_bytes: bytes, filename: str) -> None:
     :param input_bytes: <'bytes'> object
     :param filename: <'str'> path to save location
     """
-    if not filename.endswith('.pdf'):
-        filename += '.pdf'
-    with open(filename, 'wb') as f:
+    if not filename.endswith(".pdf"):
+        filename += ".pdf"
+    with open(filename, "wb") as f:
         f.write(input_bytes)
+
 
 def strip_html(raw_html: str) -> str:
     """
@@ -142,6 +144,6 @@ def strip_html(raw_html: str) -> str:
     :param raw_html: HTML string
     :return: plain text string
     """
-    clean = re.compile('<.*?>')
-    clean_text = re.sub(clean, '', raw_html)
+    clean = re.compile("<.*?>")
+    clean_text = re.sub(clean, "", raw_html)
     return clean_text
