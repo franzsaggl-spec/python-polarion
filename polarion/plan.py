@@ -8,7 +8,7 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
 from .base.polarion_object import PolarionObject
-from .exceptions import PolarionFieldError, PolarionNotFoundError
+from .exceptions import PolarionApiError, PolarionFieldError, PolarionNotFoundError
 from .factory import Creator
 from .utils import ensure_list
 from .workitem import Workitem
@@ -153,7 +153,7 @@ class Plan(PolarionObject):
                 if isinstance(item, dict) and item.get("id") is not None:
                     try:
                         workitems.append(Workitem(self._polarion, self._project, polarion_workitem=item))
-                    except Exception as e:
+                    except (PolarionApiError, PolarionNotFoundError, PolarionFieldError) as e:
                         logger.warning("Skipping unresolvable plan workitem %s: %s", item.get("id", "unknown"), e)
         return workitems
 
