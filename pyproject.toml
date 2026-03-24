@@ -30,6 +30,7 @@ dependencies = [
     "lxml",
     "texttable",
     "requests",
+    "zeep>=4.2.1",
 ]
 
 [project.urls]
