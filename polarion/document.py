@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from .base.custom_fields import CustomFields
-from .exceptions import PolarionNotFoundError
+from .exceptions import PolarionApiError, PolarionFieldError, PolarionNotFoundError
 from .factory import Creator, create_from_uri
 from .soap.envelope import NIL
 from .utils import ensure_list, extract_id
@@ -101,7 +101,7 @@ class Document(CustomFields):
         for uri in self.get_workitem_uris():
             try:
                 workitems.append(create_from_uri(self._polarion, self._project, uri))
-            except Exception as e:
+            except (PolarionApiError, PolarionNotFoundError, PolarionFieldError) as e:
                 logger.warning("Skipping unresolvable workitem URI %s: %s", uri, e)
         return workitems
 
@@ -128,7 +128,7 @@ class Document(CustomFields):
                     if extract_id(w.get("role", {})) == struct_role_id and wi_uri in doc_uris:
                         try:
                             children.append(create_from_uri(self._polarion, self._project, wi_uri))
-                        except Exception as e:
+                        except (PolarionApiError, PolarionNotFoundError, PolarionFieldError) as e:
                             logger.warning("Skipping unresolvable child workitem %s: %s", wi_uri, e)
         return children
 
