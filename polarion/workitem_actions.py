@@ -449,4 +449,3 @@ class WorkitemActionsMixin:
             "Tracker", "getWorkItemByUri", uri=self._polarion_data.get("uri", self._uri)
         )
         self._build_from_polarion()
-
