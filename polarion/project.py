@@ -11,6 +11,7 @@ from .factory import create_from_uri
 from .plan import Plan
 from .testrun import Testrun
 from .user import User
+from .utils import ensure_dict, ensure_list, ensure_str_list
 from .workitem import Workitem
 
 if TYPE_CHECKING:
@@ -35,23 +36,22 @@ class Project:
         except PolarionApiError as e:
             raise PolarionNotFoundError(f"Could not find project {project_id}") from e
 
-        if isinstance(self.polarion_data, dict) and not self.polarion_data.get("unresolvable"):
-            self.name = self.polarion_data.get("name", "")
-            self.tracker_prefix = self.polarion_data.get("trackerPrefix", "")
+        project_data = ensure_dict(self.polarion_data)
+        if project_data and not project_data.get("unresolvable"):
+            self.name = str(project_data.get("name", ""))
+            self.tracker_prefix = str(project_data.get("trackerPrefix", ""))
         else:
             raise PolarionNotFoundError(f"Could not find project {project_id}")
 
     def get_users(self) -> list[User]:
         """Get all users in this project."""
         users: list[User] = []
-        project_users = self.polarion._soap.call("Project", "getProjectUsers", projectId=self.id)
-        if not isinstance(project_users, list):
-            return users
+        project_users = ensure_list(self.polarion._soap.call("Project", "getProjectUsers", projectId=self.id))
         for user_data in project_users:
             try:
                 users.append(User(self.polarion, user_data))
             except (PolarionApiError, PolarionNotFoundError, PolarionFieldError) as e:
-                name = user_data.get("name", "unknown") if isinstance(user_data, dict) else "unknown"
+                name = ensure_dict(user_data).get("name", "unknown")
                 logger.warning("Could not retrieve %s: %s", name, e)
         return users
 
@@ -119,12 +119,10 @@ class Project:
         :param order: Sort field
         :param limit: Maximum results (-1 for unlimited)
         """
-        results = self.search_workitems(query, order, ["id"], limit)
-        if not isinstance(results, list):
-            return []
+        results = ensure_list(self.search_workitems(query, order, ["id"], limit))
         workitems = []
         for r in results:
-            wi_id = r.get("id") if isinstance(r, dict) else r
+            wi_id = ensure_dict(r).get("id") or r
             if wi_id:
                 try:
                     workitems.append(Workitem(self.polarion, self, str(wi_id)))
@@ -172,22 +170,18 @@ class Project:
         limit: int = 100,
     ) -> list[Workitem]:
         """Search for work items in a baseline and return full objects."""
-        results = self.search_workitems_in_baseline(baseline_revision, query, sort, ["id"], limit)
-        if not isinstance(results, list):
-            return []
-        return [
-            Workitem(self.polarion, self, uri=r.get("uri") if isinstance(r, dict) else str(r)) for r in results if r
-        ]
+        results = ensure_list(self.search_workitems_in_baseline(baseline_revision, query, sort, ["id"], limit))
+        return [Workitem(self.polarion, self, uri=ensure_dict(r).get("uri") or str(r)) for r in results if r]
 
     def get_enum(self, enum_name: str) -> list[str]:
         """Get options for an enumeration.
 
         :param enum_name: Enum name (e.g. "requirement-status")
         """
-        result = self.polarion._soap.call("Tracker", "getAllEnumOptionsForId", projectId=self.id, enumId=enum_name)
-        if isinstance(result, list):
-            return list(dict.fromkeys(a.get("id", "") if isinstance(a, dict) else str(a) for a in result))
-        return []
+        result = ensure_list(
+            self.polarion._soap.call("Tracker", "getAllEnumOptionsForId", projectId=self.id, enumId=enum_name)
+        )
+        return list(dict.fromkeys(ensure_dict(a).get("id", str(a)) for a in result))
 
     def get_test_run(self, id: str) -> Testrun:
         """Get a test run by ID.
@@ -316,16 +310,12 @@ class Project:
     def get_document_spaces(self) -> list[str]:
         """Get all document spaces."""
         result = self.polarion._soap.call("Tracker", "getDocumentSpaces", projectId=self.id)
-        if isinstance(result, list):
-            return sorted(result)
-        return []
+        return sorted(ensure_str_list(result))
 
     def get_document_locations(self) -> list[str]:
         """Get all document locations."""
         result = self.polarion._soap.call("Tracker", "getDocumentLocations", projectId=self.id)
-        if isinstance(result, list):
-            return sorted(result)
-        return []
+        return sorted(ensure_str_list(result))
 
     def get_documents_in_space(self, space: str) -> list[Document]:
         """Get all documents in a space.

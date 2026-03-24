@@ -28,6 +28,16 @@ def ensure_list(value: Any) -> list:
     return value if isinstance(value, list) else [value]
 
 
+def ensure_dict(value: Any) -> dict[str, Any]:
+    """Normalize an unknown SOAP value to a dict, or return an empty dict."""
+    return value if isinstance(value, dict) else {}
+
+
+def ensure_str_list(value: Any) -> list[str]:
+    """Normalize SOAP list-like values into a list of strings."""
+    return [str(v) for v in ensure_list(value) if v is not None]
+
+
 def extract_id(data: Any, key: str = "id", default: str = "") -> str:
     """Extract an ID string from a SOAP value that may be a dict or a plain string."""
     if data is None:

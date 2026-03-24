@@ -10,7 +10,7 @@ from .base.custom_fields import CustomFields
 from .exceptions import PolarionApiError, PolarionFieldError, PolarionNotFoundError
 from .factory import Creator, create_from_uri
 from .soap.envelope import NIL
-from .utils import ensure_list, extract_id
+from .utils import ensure_dict, ensure_list, extract_id
 
 if TYPE_CHECKING:
     from .client import Polarion
@@ -123,9 +123,10 @@ class Document(CustomFields):
             doc_uris = self.get_workitem_uris()
             struct_role_id = extract_id(self.structureLinkRole)
             for w in ensure_list(derived):
-                if isinstance(w, dict):
-                    wi_uri = w.get("workItemURI", "")
-                    if extract_id(w.get("role", {})) == struct_role_id and wi_uri in doc_uris:
+                w_data = ensure_dict(w)
+                if w_data:
+                    wi_uri = str(w_data.get("workItemURI", ""))
+                    if extract_id(w_data.get("role", {})) == struct_role_id and wi_uri in doc_uris:
                         try:
                             children.append(create_from_uri(self._polarion, self._project, wi_uri))
                         except (PolarionApiError, PolarionNotFoundError, PolarionFieldError) as e:
@@ -142,9 +143,10 @@ class Document(CustomFields):
             doc_uris = self.get_workitem_uris()
             struct_role_id = extract_id(self.structureLinkRole)
             for w in ensure_list(linked):
-                if isinstance(w, dict):
-                    wi_uri = w.get("workItemURI", "")
-                    if extract_id(w.get("role", {})) == struct_role_id and wi_uri in doc_uris:
+                w_data = ensure_dict(w)
+                if w_data:
+                    wi_uri = str(w_data.get("workItemURI", ""))
+                    if extract_id(w_data.get("role", {})) == struct_role_id and wi_uri in doc_uris:
                         return create_from_uri(self._polarion, self._project, wi_uri)
         return None
 
