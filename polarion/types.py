@@ -157,6 +157,8 @@ class HyperlinkInfo:
 class TestStep:
     """A single test step with column values."""
 
+    __test__ = False
+
     values: dict[str, str]
 
     @classmethod
@@ -167,6 +169,8 @@ class TestStep:
 @dataclass
 class TestStepResult:
     """Result of a single test step execution."""
+
+    __test__ = False
 
     result: str | None = None
     comment: str | None = None

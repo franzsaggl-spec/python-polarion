@@ -17,7 +17,7 @@ A Python client for the Polarion Application Lifecycle Management (ALM) platform
 
 ## Requirements
 
-- **Python**: 3.10+
+- **Python**: 3.9+
 - **Dependencies**: requests, lxml, texttable
 
 ## Installation
