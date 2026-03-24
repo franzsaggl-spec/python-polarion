@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 
 class Testrun(CustomFields, Comments):
+    __test__ = False
     """A Polarion test run.
 
     :param polarion: Polarion client
