@@ -5,11 +5,36 @@ from __future__ import annotations
 import re
 from abc import ABC
 from html.parser import HTMLParser
+from typing import TYPE_CHECKING, Any
 from xml.etree import ElementTree
 
 from texttable import Texttable
 
-from polarion.project import Project
+if TYPE_CHECKING:
+    from polarion.project import Project
+
+_HTML_TAG_RE = re.compile("<.*?>")
+
+
+def ensure_list(value: Any) -> list:
+    """Normalize a value that may be a single item or a list into a list.
+
+    SOAP responses often return a single dict when there is one result
+    and a list when there are multiple. This helper eliminates the
+    ``x if isinstance(x, list) else [x]`` pattern used throughout.
+    """
+    if value is None:
+        return []
+    return value if isinstance(value, list) else [value]
+
+
+def extract_id(data: Any, key: str = "id", default: str = "") -> str:
+    """Extract an ID string from a SOAP value that may be a dict or a plain string."""
+    if data is None:
+        return default
+    if isinstance(data, dict):
+        return data.get(key, default)
+    return str(data)
 
 
 class DescriptionParser(HTMLParser, ABC):
@@ -106,5 +131,4 @@ def strip_html(raw_html: str) -> str:
     :param raw_html: HTML string
     :return: Plain text
     """
-    clean = re.compile("<.*?>")
-    return re.sub(clean, "", raw_html)
+    return _HTML_TAG_RE.sub("", raw_html)

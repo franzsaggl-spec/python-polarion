@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any
 from .base.polarion_object import BatchSaveMixin, PolarionObject
 from .exceptions import PolarionNotFoundError
 from .factory import create_from_uri
+from .types import TextContent
+from .utils import ensure_list
 
 if TYPE_CHECKING:
     from .client import Polarion
@@ -72,7 +74,6 @@ class Record(PolarionObject, BatchSaveMixin):
 
         self._testcase = self._polarion_record.get("testCaseURI", "")
         self._testcase_name = self._testcase.split("}")[-1] if "}" in self._testcase else self._testcase
-        self._defect = self._polarion_record.get("defectURI")
 
     def _reload_from_polarion(self) -> None:
         result = self._polarion._soap.call(
@@ -83,8 +84,6 @@ class Record(PolarionObject, BatchSaveMixin):
         elif isinstance(result, dict):
             self._polarion_record = result
         self._build_from_polarion()
-
-    # --- Results ---
 
     def set_test_step_result(
         self,
@@ -107,19 +106,18 @@ class Record(PolarionObject, BatchSaveMixin):
                     num_steps = len(steps)
             self.testStepResults = [{"result": None, "comment": None} for _ in range(num_steps)]
 
-        if not isinstance(self.testStepResults, list):
-            self.testStepResults = [self.testStepResults]
+        self.testStepResults = ensure_list(self.testStepResults)
 
         if step_number < len(self.testStepResults):
             step_result = self.testStepResults[step_number]
             if isinstance(step_result, dict):
                 step_result["result"] = {"id": result.value}
                 if comment is not None:
-                    step_result["comment"] = {"content": comment, "type": "text/html", "contentLossy": False}
+                    step_result["comment"] = TextContent(content=comment).to_soap()
             else:
                 self.testStepResults[step_number] = {
                     "result": {"id": result.value},
-                    "comment": {"content": comment, "type": "text/html", "contentLossy": False} if comment else None,
+                    "comment": TextContent(content=comment).to_soap() if comment else None,
                 }
 
     def get_result(self) -> ResultType:
@@ -149,7 +147,7 @@ class Record(PolarionObject, BatchSaveMixin):
 
     def set_comment(self, comment: str) -> None:
         """Set the comment for this record."""
-        self.comment = {"content": comment, "type": "text/html", "contentLossy": False}
+        self.comment = TextContent(content=comment).to_soap()
 
     def set_result(
         self,
@@ -168,15 +166,11 @@ class Record(PolarionObject, BatchSaveMixin):
         else:
             self.result = {"id": result.value}
 
-    # --- User ---
-
     def get_executing_user(self) -> User | None:
         """Get the user who executed this test."""
         if self.executedByURI is not None:
             return create_from_uri(self._polarion, None, self.executedByURI)
         return None
-
-    # --- Attachments ---
 
     def has_attachment(self) -> bool:
         """Check if this record has attachments."""
@@ -185,8 +179,7 @@ class Record(PolarionObject, BatchSaveMixin):
     def get_attachment(self, file_name: str) -> bytes:
         """Get attachment data by file name."""
         if self.attachments is not None:
-            att_list = self.attachments if isinstance(self.attachments, list) else [self.attachments]
-            for att in att_list:
+            for att in ensure_list(self.attachments):
                 if isinstance(att, dict) and att.get("fileName") == file_name:
                     url = att.get("url")
                     if url:
@@ -225,13 +218,9 @@ class Record(PolarionObject, BatchSaveMixin):
             )
         self._reload_from_polarion()
 
-    # --- Test Step Attachments ---
-
     def test_step_has_attachment(self, step_index: int) -> bool:
         """Check if a test step has attachments."""
-        if self.testStepResults is None:
-            return False
-        results = self.testStepResults if isinstance(self.testStepResults, list) else [self.testStepResults]
+        results = ensure_list(self.testStepResults)
         if step_index < len(results):
             step = results[step_index]
             if isinstance(step, dict):
@@ -240,18 +229,15 @@ class Record(PolarionObject, BatchSaveMixin):
 
     def get_attachment_from_test_step(self, step_index: int, file_name: str) -> bytes:
         """Get attachment data from a test step."""
-        if self.testStepResults is not None:
-            results = self.testStepResults if isinstance(self.testStepResults, list) else [self.testStepResults]
-            if step_index < len(results):
-                step = results[step_index]
-                if isinstance(step, dict):
-                    atts = step.get("attachments", [])
-                    att_list = atts if isinstance(atts, list) else [atts]
-                    for att in att_list:
-                        if isinstance(att, dict) and att.get("fileName") == file_name:
-                            url = att.get("url")
-                            if url:
-                                return self._polarion.download_from_svn(url)
+        results = ensure_list(self.testStepResults)
+        if step_index < len(results):
+            step = results[step_index]
+            if isinstance(step, dict):
+                for att in ensure_list(step.get("attachments")):
+                    if isinstance(att, dict) and att.get("fileName") == file_name:
+                        url = att.get("url")
+                        if url:
+                            return self._polarion.download_from_svn(url)
         raise PolarionNotFoundError(f"Could not find attachment {file_name}")
 
     def save_attachment_from_test_step_as_file(self, step_index: int, file_name: str, file_path: str) -> None:
@@ -287,8 +273,6 @@ class Record(PolarionObject, BatchSaveMixin):
                 content=f.read(),
             )
         self._reload_from_polarion()
-
-    # --- Save ---
 
     def save(self) -> None:
         """Save the test record."""

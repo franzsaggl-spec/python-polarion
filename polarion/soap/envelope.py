@@ -13,13 +13,9 @@ from typing import Any
 
 from lxml import etree
 
-logger = logging.getLogger(__name__)
+from .constants import NS_SOAP, NS_XSD, NS_XSI
 
-# SOAP / Polarion namespaces
-NS_SOAP = "http://schemas.xmlsoap.org/soap/envelope/"
-NS_XSI = "http://www.w3.org/2001/XMLSchema-instance"
-NS_XSD = "http://www.w3.org/2001/XMLSchema"
-NS_SESSION = "http://ws.polarion.com/session"
+logger = logging.getLogger(__name__)
 
 # Common Polarion service namespaces
 SERVICE_NAMESPACES: dict[str, dict[str, str]] = {

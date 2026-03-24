@@ -6,6 +6,7 @@ from abc import ABC
 
 from polarion.base.polarion_object import PolarionObject
 from polarion.exceptions import PolarionApiError, PolarionFieldError
+from polarion.types import TextContent
 
 
 class Comments(PolarionObject, ABC):
@@ -35,11 +36,7 @@ class Comments(PolarionObject, ABC):
         else:
             title = None  # replies cannot have titles
 
-        content = {
-            "type": f"text/{content_type}",
-            "content": comment,
-            "contentLossy": False,
-        }
+        content = TextContent(content=comment, content_type=f"text/{content_type}").to_soap()
 
         try:
             self._polarion._soap.call(

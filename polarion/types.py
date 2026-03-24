@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from .utils import extract_id
+
 
 @dataclass
 class TextContent:
@@ -70,10 +72,8 @@ class LinkedItem:
     def from_soap(cls, data: dict[str, Any] | None) -> LinkedItem | None:
         if data is None:
             return None
-        role_data = data.get("role", {})
-        role_id = role_data.get("id", "") if isinstance(role_data, dict) else str(role_data)
         return cls(
-            role=role_id,
+            role=extract_id(data.get("role", {})),
             workitem_uri=data.get("workItemURI", ""),
             suspect=data.get("suspect", False),
         )
@@ -90,11 +90,10 @@ class Approval:
     def from_soap(cls, data: dict[str, Any] | None) -> Approval | None:
         if data is None:
             return None
-        user_data = data.get("user", {})
-        user_id = user_data.get("id", "") if isinstance(user_data, dict) else str(user_data)
-        status_data = data.get("status", {})
-        status = status_data.get("id") if isinstance(status_data, dict) else status_data
-        return cls(user_id=user_id, status=status)
+        return cls(
+            user_id=extract_id(data.get("user", {})),
+            status=extract_id(data.get("status", {})) or None,
+        )
 
 
 @dataclass
@@ -151,9 +150,7 @@ class HyperlinkInfo:
     def from_soap(cls, data: dict[str, Any] | None) -> HyperlinkInfo | None:
         if data is None:
             return None
-        role_data = data.get("role", {})
-        role_id = role_data.get("id", "") if isinstance(role_data, dict) else str(role_data)
-        return cls(uri=data.get("uri", ""), role=role_id)
+        return cls(uri=data.get("uri", ""), role=extract_id(data.get("role", {})))
 
 
 @dataclass
@@ -178,8 +175,7 @@ class TestStepResult:
     def from_soap(cls, data: dict[str, Any] | None) -> TestStepResult | None:
         if data is None:
             return None
-        result_data = data.get("result", {})
-        result_id = result_data.get("id") if isinstance(result_data, dict) else result_data
+        result_id = extract_id(data.get("result", {})) or None
         comment_data = data.get("comment", {})
         comment = comment_data.get("content") if isinstance(comment_data, dict) else comment_data
         return cls(result=result_id, comment=comment)

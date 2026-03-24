@@ -11,6 +11,7 @@ from .base.custom_fields import CustomFields
 from .exceptions import PolarionFieldError, PolarionNotFoundError
 from .factory import Creator
 from .record import Record
+from .utils import ensure_list
 
 if TYPE_CHECKING:
     from .client import Polarion
@@ -75,8 +76,7 @@ class Testrun(CustomFields, Comments):
         self.records: list[Record] = []
         self._record_dict: dict[str, Record] = {}
         if raw_records is not None:
-            record_list = raw_records if isinstance(raw_records, list) else [raw_records]
-            for index, r in enumerate(record_list):
+            for index, r in enumerate(ensure_list(raw_records)):
                 if isinstance(r, dict):
                     new_record = Record(self._polarion, self, r, index)
                     self.records.append(new_record)
@@ -95,8 +95,6 @@ class Testrun(CustomFields, Comments):
     def get_test_case(self, id: str) -> Record | None:
         """Get a test record by test case ID."""
         return self._record_dict.get(id)
-
-    # --- Attachments ---
 
     def has_attachment(self) -> bool:
         """Check if the test run has attachments."""
@@ -161,13 +159,7 @@ class Testrun(CustomFields, Comments):
 
     def save(self) -> None:
         """Save changes to Polarion."""
-        changed: dict[str, Any] = {}
-        for key in self._polarion_data:
-            if key in ("uri", "unresolvable", "records"):
-                continue
-            current_val = getattr(self, key, None)
-            if current_val is not None and current_val != self._original_data.get(key):
-                changed[key] = current_val
+        changed = self._collect_changes(self, self._polarion_data, self._original_data, skip={"records"})
         if changed:
             changed["uri"] = self.uri
             self._polarion._soap.call("TestManagement", "updateTestRun", content=changed)

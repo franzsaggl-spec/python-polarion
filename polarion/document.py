@@ -10,6 +10,7 @@ from .base.custom_fields import CustomFields
 from .exceptions import PolarionNotFoundError
 from .factory import Creator, create_from_uri
 from .soap.envelope import NIL
+from .utils import ensure_list, extract_id
 
 if TYPE_CHECKING:
     from .client import Polarion
@@ -47,9 +48,6 @@ class Document(CustomFields):
         location: str | None = None,
     ) -> None:
         super().__init__(polarion, project, uri=uri)
-        self._uri = uri
-        self._project = project
-        self._polarion = polarion
         self._polarion_data: dict[str, Any] = {}
         self._original_data: dict[str, Any] = {}
 
@@ -123,15 +121,11 @@ class Document(CustomFields):
         derived = getattr(workitem, "linkedWorkItemsDerived", None)
         if derived is not None:
             doc_uris = self.get_workitem_uris()
-            items = derived if isinstance(derived, list) else [derived]
-            struct_role = self.structureLinkRole
-            struct_role_id = struct_role.get("id", "") if isinstance(struct_role, dict) else str(struct_role or "")
-            for w in items:
+            struct_role_id = extract_id(self.structureLinkRole)
+            for w in ensure_list(derived):
                 if isinstance(w, dict):
-                    role = w.get("role", {})
-                    role_id = role.get("id", "") if isinstance(role, dict) else str(role)
                     wi_uri = w.get("workItemURI", "")
-                    if role_id == struct_role_id and wi_uri in doc_uris:
+                    if extract_id(w.get("role", {})) == struct_role_id and wi_uri in doc_uris:
                         try:
                             children.append(create_from_uri(self._polarion, self._project, wi_uri))
                         except Exception as e:
@@ -146,15 +140,11 @@ class Document(CustomFields):
         linked = getattr(workitem, "linkedWorkItems", None)
         if linked is not None:
             doc_uris = self.get_workitem_uris()
-            items = linked if isinstance(linked, list) else [linked]
-            struct_role = self.structureLinkRole
-            struct_role_id = struct_role.get("id", "") if isinstance(struct_role, dict) else str(struct_role or "")
-            for w in items:
+            struct_role_id = extract_id(self.structureLinkRole)
+            for w in ensure_list(linked):
                 if isinstance(w, dict):
-                    role = w.get("role", {})
-                    role_id = role.get("id", "") if isinstance(role, dict) else str(role)
                     wi_uri = w.get("workItemURI", "")
-                    if role_id == struct_role_id and wi_uri in doc_uris:
+                    if extract_id(w.get("role", {})) == struct_role_id and wi_uri in doc_uris:
                         return create_from_uri(self._polarion, self._project, wi_uri)
         return None
 
@@ -224,13 +214,7 @@ class Document(CustomFields):
 
     def save(self) -> None:
         """Save document changes to Polarion."""
-        changed: dict[str, Any] = {}
-        for key in self._polarion_data:
-            if key in ("uri", "unresolvable"):
-                continue
-            current_val = getattr(self, key, None)
-            if current_val is not None and current_val != self._original_data.get(key):
-                changed[key] = current_val
+        changed = self._collect_changes(self, self._polarion_data, self._original_data)
         if changed:
             changed["uri"] = self._uri
             self._polarion._soap.call("Tracker", "updateModule", content=changed)

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 from .base.polarion_object import PolarionObject
 from .exceptions import PolarionFieldError, PolarionNotFoundError
 from .factory import Creator
+from .utils import ensure_list
 from .workitem import Workitem
 
 logger = logging.getLogger(__name__)
@@ -144,9 +145,7 @@ class Plan(PolarionObject):
 
     def get_workitems(self) -> list[Workitem]:
         """Get all work items in this plan."""
-        if self.records is None:
-            return []
-        record_list = self.records if isinstance(self.records, list) else [self.records]
+        record_list = ensure_list(self.records)
         workitems = []
         for r in record_list:
             if isinstance(r, dict):
@@ -169,13 +168,7 @@ class Plan(PolarionObject):
 
     def save(self) -> None:
         """Save plan changes to Polarion."""
-        changed: dict[str, Any] = {}
-        for key in self._polarion_record:
-            if key in ("uri", "unresolvable"):
-                continue
-            current_val = getattr(self, key, None)
-            if current_val is not None and current_val != self._original_data.get(key):
-                changed[key] = current_val
+        changed = self._collect_changes(self, self._polarion_record, self._original_data)
         if changed:
             changed["uri"] = self.uri
             self._polarion._soap.call("Planning", "updatePlan", content=changed)

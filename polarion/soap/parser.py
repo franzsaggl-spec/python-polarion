@@ -13,13 +13,9 @@ from typing import Any
 from lxml import etree
 
 from ..exceptions import PolarionApiError
+from .constants import NS_SOAP, NS_XSI
 
 logger = logging.getLogger(__name__)
-
-# Namespaces used in responses
-NS_SOAP = "http://schemas.xmlsoap.org/soap/envelope/"
-NS_XSI = "http://www.w3.org/2001/XMLSchema-instance"
-NS_XSD = "http://www.w3.org/2001/XMLSchema"
 
 
 def parse_response(content: bytes) -> Any:

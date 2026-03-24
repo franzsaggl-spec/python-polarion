@@ -23,6 +23,7 @@ from .exceptions import (
 )
 from .project import Project
 from .soap.client import SoapClient
+from .utils import ensure_list
 
 logger = logging.getLogger(__name__)
 
@@ -120,13 +121,7 @@ class Polarion:
         )
 
         workitems = []
-        if results is None:
-            return workitems
-
-        if not isinstance(results, list):
-            results = [results]
-
-        for result in results:
+        for result in ensure_list(results):
             if isinstance(result, dict):
                 project_data = result.get("project", {})
                 project_id = project_data.get("id", "") if isinstance(project_data, dict) else ""

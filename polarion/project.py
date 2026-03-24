@@ -41,8 +41,6 @@ class Project:
         else:
             raise PolarionNotFoundError(f"Could not find project {project_id}")
 
-    # --- Users ---
-
     def get_users(self) -> list[User]:
         """Get all users in this project."""
         users: list[User] = []
@@ -66,8 +64,6 @@ class Project:
             if user.id.lower() == name.lower() or user.name.lower() == name.lower():
                 return user
         return None
-
-    # --- Work Items ---
 
     def get_workitem(self, id: str) -> Workitem:
         """Get a work item by ID.
@@ -104,10 +100,14 @@ class Project:
         if field_list is None:
             field_list = ["id"]
 
-        full_query = f"{query} AND project.id:{self.id}" if query else f"project.id:{self.id}"
         return (
             self.polarion._soap.call(
-                "Tracker", "queryWorkItemsLimited", query=full_query, sort=order, fields=field_list, limit=limit
+                "Tracker",
+                "queryWorkItemsLimited",
+                query=self._scoped_query(query),
+                sort=order,
+                fields=field_list,
+                limit=limit,
             )
             or []
         )
@@ -151,12 +151,11 @@ class Project:
         if field_list is None:
             field_list = ["id"]
 
-        full_query = f"{query} AND project.id:{self.id}" if query else f"project.id:{self.id}"
         return (
             self.polarion._soap.call(
                 "Tracker",
                 "queryWorkItemsInBaselineLimited",
-                query=full_query,
+                query=self._scoped_query(query),
                 sort=sort,
                 baselineRevision=baseline_revision,
                 fields=field_list,
@@ -180,8 +179,6 @@ class Project:
             Workitem(self.polarion, self, uri=r.get("uri") if isinstance(r, dict) else str(r)) for r in results if r
         ]
 
-    # --- Enumerations ---
-
     def get_enum(self, enum_name: str) -> list[str]:
         """Get options for an enumeration.
 
@@ -191,8 +188,6 @@ class Project:
         if isinstance(result, list):
             return list(dict.fromkeys(a.get("id", "") if isinstance(a, dict) else str(a) for a in result))
         return []
-
-    # --- Test Runs ---
 
     def get_test_run(self, id: str) -> Testrun:
         """Get a test run by ID.
@@ -209,9 +204,8 @@ class Project:
         :param order: Sort field
         :param limit: Maximum results
         """
-        full_query = f"{query} AND project.id:{self.id}" if query else f"project.id:{self.id}"
         results = self.polarion._soap.call(
-            "TestManagement", "searchTestRunsLimited", query=full_query, sort=order, limit=limit
+            "TestManagement", "searchTestRunsLimited", query=self._scoped_query(query), sort=order, limit=limit
         )
         if not isinstance(results, list):
             return []
@@ -233,8 +227,6 @@ class Project:
             templateId=template_id,
         )
         return create_from_uri(self.polarion, self, new_uri)
-
-    # --- Plans ---
 
     def get_plan(self, id: str) -> Plan:
         """Get a plan by ID."""
@@ -270,14 +262,16 @@ class Project:
         :param order: Sort field
         :param limit: Maximum results
         """
-        full_query = f"{query} AND project.id:{self.id}" if query else f"project.id:{self.id}"
-        return self.polarion._soap.call("Planning", "searchPlans", query=full_query, sort=order, limit=limit) or []
+        return (
+            self.polarion._soap.call(
+                "Planning", "searchPlans", query=self._scoped_query(query), sort=order, limit=limit
+            )
+            or []
+        )
 
     def search_plans_full(self, query: str = "", order: str = "Created", limit: int = 100) -> list[Plan]:
         """Search for plans and return full Plan objects."""
         return [Plan(self.polarion, self, polarion_record=p) for p in self.search_plans(query, order, limit)]
-
-    # --- Documents ---
 
     def get_document(self, location: str) -> Document:
         """Get a document by location.
@@ -342,6 +336,10 @@ class Project:
         if not isinstance(uris, list):
             return []
         return [Document(self.polarion, self, uri=u) for u in uris]
+
+    def _scoped_query(self, query: str) -> str:
+        """Add project scope to a Polarion query string."""
+        return f"{query} AND project.id:{self.id}" if query else f"project.id:{self.id}"
 
     def __repr__(self) -> str:
         return f"Polarion project {self.name} prefix {self.tracker_prefix}"

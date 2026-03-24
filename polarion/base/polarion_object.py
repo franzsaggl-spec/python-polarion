@@ -9,6 +9,8 @@ if TYPE_CHECKING:
     from polarion.client import Polarion
     from polarion.project import Project
 
+_POPULATE_SKIP = {"unresolvable", "uri"}
+
 
 class PolarionObject:
     """Base class for Polarion model objects (Workitem, Document, Plan, etc.)."""
@@ -40,32 +42,34 @@ class PolarionObject:
         :param data: Dict from parsed SOAP response
         :param remap: Optional field name remapping (soap_name -> python_name)
         """
-        _skip = {"unresolvable", "uri"}
         for key, value in data.items():
-            if key in _skip:
+            if key in _POPULATE_SKIP:
                 continue
             name = remap.get(key, key) if remap else key
             setattr(target, name, value)
 
     @staticmethod
-    def _build_changed_fields(
-        current: dict[str, Any],
+    def _collect_changes(
+        obj: Any,
+        data_keys: dict[str, Any],
         original: dict[str, Any],
         skip: set[str] | None = None,
     ) -> dict[str, Any]:
-        """Build a dict of changed fields by comparing current vs original values.
+        """Collect changed fields by comparing current attribute values against original data.
 
-        :param current: Current field values
-        :param original: Original field values (from last load)
-        :param skip: Field names to skip
-        :return: Dict of changed fields
+        :param obj: Object whose attributes to read
+        :param data_keys: Dict whose keys enumerate the fields to check
+        :param original: Original field values from last load
+        :param skip: Additional field names to skip
         """
+        _skip = _POPULATE_SKIP | (skip or set())
         changed: dict[str, Any] = {}
-        for key, value in current.items():
-            if skip and key in skip:
+        for key in data_keys:
+            if key in _skip:
                 continue
-            if key in original and value != original[key]:
-                changed[key] = value
+            current_val = getattr(obj, key, None)
+            if current_val is not None and current_val != original.get(key):
+                changed[key] = current_val
         return changed
 
     @staticmethod
@@ -108,11 +112,7 @@ class PolarionObject:
 class BatchSaveMixin:
     """Mixin providing context manager support for deferred save.
 
-    Usage:
-        with workitem.batch() as wi:
-            wi.title = "New title"
-            wi.description = TextContent("new desc")
-        # save() called once on exit
+    Supports both ``with obj.batch() as o:`` and ``with obj:`` patterns.
     """
 
     _batch_save: bool = False

@@ -19,13 +19,13 @@ from ..exceptions import (
     PolarionAuthError,
     PolarionConnectionError,
 )
+from .constants import NS_SESSION
 from .envelope import build_envelope
 from .parser import parse_response
 
 logger = logging.getLogger(__name__)
 
 _BASE_SERVICE_PATH = "ws/services"
-_NS_SESSION = "http://ws.polarion.com/session"
 
 SOAP_HEADERS = {
     "Content-Type": "text/xml; charset=utf-8",
@@ -62,7 +62,6 @@ class SoapClient:
             self._session.proxies = {"http": proxy, "https": proxy}
 
         self._session_header: etree._Element | None = None
-        self._cookie_jar: requests.cookies.RequestsCookieJar | None = None
         self._services: dict[str, str] = {}
 
     def discover_services(self, static: bool = False) -> None:
@@ -186,10 +185,9 @@ class SoapClient:
     def _extract_session(self, response_bytes: bytes) -> None:
         """Extract session ID from login response and store cookies."""
         root = etree.fromstring(response_bytes)
-        session_id = root.find(f".//{{{_NS_SESSION}}}sessionID")
+        session_id = root.find(f".//{{{NS_SESSION}}}sessionID")
         if session_id is not None:
             self._session_header = copy.deepcopy(session_id)
-            self._cookie_jar = self._session.cookies.copy()
         else:
             raise PolarionAuthError("No session ID returned by login")
 
