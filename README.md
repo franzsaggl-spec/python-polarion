@@ -66,6 +66,10 @@ Optional:
 
 - `POLARION_VERIFY_SSL` (`true|false`, default `true`)
 - `POLARION_TIMEOUT` (seconds, default `30`)
+- `POLARION_WORKITEM_ID` (enables direct workitem get smoke)
+- `POLARION_DOCUMENT_URI` (enables direct document get smoke)
+- `POLARION_PLAN_ID` (enables direct plan get smoke)
+- `POLARION_TESTRUN_ID` (enables direct test run get smoke)
 
 ## Public entrypoint
 
