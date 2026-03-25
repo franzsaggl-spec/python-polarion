@@ -1,6 +1,14 @@
 Changelog
 =========
 
+V3.0.1 (2026-03-25)
+-------------------
+- Post-merge stabilization after PR #31 and PR #32.
+- Added/validated v3 healthcheck and capabilities probing paths.
+- Added/validated SOAP method support + fallback probing behavior.
+- Added live integration happy-path coverage in `tests/integration/test_v3_live_happy_path.py`.
+- Lint/format and test stability fixes to keep CI green across 3.9–3.13.
+
 V3.0.0 (2026-03-24)
 -------------------
 - Reset package to v3-only API surface.

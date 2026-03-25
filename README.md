@@ -44,10 +44,12 @@ v3 now includes:
 - service interfaces/signatures
 - parser layer and SOAP transport wiring
 - baseline service implementations for projects, users, workitems, documents, plans, and test runs
+- client healthcheck + capabilities probing (`client.healthcheck()`, `client.capabilities()`)
+- SOAP endpoint fallback probing in transport (`supports_method`, `call_with_fallback`)
 
 ## Live integration test harness (opt-in)
 
-A live smoke test harness is available under `tests/integration/`.
+A live smoke test harness is available under `tests/integration/`, including a happy-path end-to-end flow (`test_v3_live_happy_path.py`).
 
 It is disabled by default and only runs when explicitly enabled:
 
