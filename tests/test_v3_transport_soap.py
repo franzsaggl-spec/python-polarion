@@ -135,3 +135,34 @@ def test_call_fails_after_retries(monkeypatch):
     t = SoapTransport(url="https://x/polarion", username="u", max_retries=1)
     with pytest.raises(TransportError):
         t.call("Tracker", "ping")
+
+
+def test_call_with_fallback_uses_second_method(monkeypatch):
+    class FallbackService(DummyService):
+        def methodA(self, **kwargs):
+            raise requests.ConnectionError("nope")
+
+        def methodB(self, **kwargs):
+            return {"ok": True}
+
+    def fake_client(wsdl, transport):
+        svc = FallbackService() if wsdl.endswith("/Tracker?wsdl") else DummyService()
+        return SimpleNamespace(service=svc)
+
+    monkeypatch.setattr("polarion.v3.transport.soap.Client", fake_client)
+    monkeypatch.setattr("polarion.v3.transport.soap.time.sleep", lambda *_: None)
+
+    t = SoapTransport(url="https://x/polarion", username="u")
+    out = t.call_with_fallback("Tracker", ["methodA", "methodB"])
+    assert out["ok"] is True
+
+
+def test_supports_method(monkeypatch):
+    def fake_client(wsdl, transport):
+        return SimpleNamespace(service=DummyService({"ping": lambda **k: {"ok": True}}))
+
+    monkeypatch.setattr("polarion.v3.transport.soap.Client", fake_client)
+
+    t = SoapTransport(url="https://x/polarion", username="u")
+    assert t.supports_method("Tracker", "ping") is True
+    assert t.supports_method("Tracker", "missing") is False

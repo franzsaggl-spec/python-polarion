@@ -102,6 +102,24 @@ class SoapTransport:
 
         raise TransportError(f"SOAP call failed: {service}.{method}")
 
+    def call_with_fallback(self, service: str, methods: list[str], **kwargs: Any) -> Any:
+        """Try multiple SOAP methods in order and return first successful response."""
+        errors: list[str] = []
+        for method in methods:
+            try:
+                return self.call(service, method, **kwargs)
+            except TransportError as e:
+                errors.append(f"{method}: {e}")
+
+        raise TransportError(
+            f"SOAP call failed for all fallback methods on {service}: " + "; ".join(errors)
+        )
+
+    def supports_method(self, service: str, method: str) -> bool:
+        """Check whether a SOAP method exists on a service without calling it."""
+        client = self._client(service)
+        return getattr(client.service, method, None) is not None
+
     def close(self) -> None:
         try:
             if self._authenticated:

@@ -43,7 +43,13 @@ class PlansService(ServiceBase):
         offset: int = 0,
         limit: int = 100,
     ) -> Page[Plan]:
-        raw = self.transport.call("Planning", "searchPlans", projectId=project_id, query=query or "", sort=sort)
+        raw = self.transport.call_with_fallback(
+            "Planning",
+            ["searchPlans", "queryPlans"],
+            projectId=project_id,
+            query=query or "",
+            sort=sort,
+        )
         items = parse_plan_list(raw)
         sliced = items[offset : offset + limit]
         return Page(
