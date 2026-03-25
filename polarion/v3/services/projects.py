@@ -9,7 +9,9 @@ from .base import ServiceBase
 class ProjectsService(ServiceBase):
     def get(self, project_id: str) -> Project:
         raw = self.transport.call("Project", "getProject", projectId=project_id)
-        return parse_project(raw)
+        project = parse_project(raw)
+        self.require_identifier(project.id, context=f"project {project_id}")
+        return project
 
     def list(self, query: str | None = None, *, offset: int = 0, limit: int = 100) -> Page[Project]:
         # Polarion SOAP API has no generic project search endpoint in the legacy API;

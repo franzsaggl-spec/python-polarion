@@ -11,7 +11,9 @@ from .base import ServiceBase
 class PlansService(ServiceBase):
     def get(self, project_id: str, plan_id: str) -> Plan:
         raw = self.transport.call("Planning", "getPlanById", projectId=project_id, id=plan_id)
-        return parse_plan(raw)
+        plan = parse_plan(raw)
+        self.require_identifier(plan.id, context=f"plan {plan_id}")
+        return plan
 
     def create(self, project_id: str, payload: PlanCreate) -> Plan:
         raw = self.transport.call(

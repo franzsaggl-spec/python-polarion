@@ -9,7 +9,9 @@ from .base import ServiceBase
 class WorkitemsService(ServiceBase):
     def get(self, project_id: str, workitem_id: str) -> WorkitemDetail:
         raw = self.transport.call("Tracker", "getWorkItemById", projectId=project_id, id=workitem_id)
-        return parse_workitem_detail(raw)
+        wi = parse_workitem_detail(raw)
+        self.require_identifier(wi.id, context=f"workitem {workitem_id}")
+        return wi
 
     def get_by_uri(self, uri: str) -> WorkitemDetail:
         raw = self.transport.call("Tracker", "getWorkItemByUri", uri=uri)
