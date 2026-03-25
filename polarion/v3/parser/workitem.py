@@ -4,7 +4,7 @@ from typing import Any
 
 from ..types.common import AttachmentMeta, EnumRef, Link, UserRef
 from ..types.workitem import WorkitemDetail, WorkitemSummary
-from .common import maybe_list, require_dict
+from .common import maybe_list, parse_datetime, require_dict
 
 
 def _enum_ref(raw: Any) -> EnumRef | None:
@@ -82,6 +82,6 @@ def parse_workitem_detail(raw: dict[str, Any]) -> WorkitemDetail:
         links=links,
         attachments=attachments,
         custom_fields=d.get("customFields", {}) if isinstance(d.get("customFields"), dict) else {},
-        created_at=None,
-        updated_at=None,
+        created_at=parse_datetime(d.get("created"), context="workitem.created"),
+        updated_at=parse_datetime(d.get("updated"), context="workitem.updated"),
     )
