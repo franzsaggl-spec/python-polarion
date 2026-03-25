@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -25,6 +26,8 @@ class SoapTransport:
     _clients: dict[str, Client] = field(default_factory=dict, init=False)
     _session: requests.Session = field(init=False)
     _authenticated: bool = field(default=False, init=False)
+    max_retries: int = 2
+    retry_backoff_seconds: float = 0.2
 
     def __post_init__(self) -> None:
         self._session = requests.Session()
@@ -77,10 +80,27 @@ class SoapTransport:
         fn = getattr(client.service, method, None)
         if fn is None:
             raise TransportError(f"SOAP method not found: {service}.{method}")
-        try:
-            return fn(**kwargs)
-        except (ZeepFault, ZeepError, requests.RequestException, OSError) as e:
-            raise TransportError(f"SOAP call failed: {service}.{method}: {e}") from e
+
+        kwargs.pop("_timeout", None)  # reserved for future per-call transport override
+
+        attempts = self.max_retries + 1
+        for attempt in range(1, attempts + 1):
+            try:
+                return fn(**kwargs)
+            except ZeepFault as e:
+                # SOAP-level faults are not transient; fail fast.
+                raise TransportError(f"SOAP call failed: {service}.{method}: {e}") from e
+            except (requests.Timeout, requests.ConnectionError, OSError) as e:
+                if attempt >= attempts:
+                    raise TransportError(f"SOAP call failed after retries: {service}.{method}: {e}") from e
+                time.sleep(self.retry_backoff_seconds * attempt)
+            except ZeepError as e:
+                # Some Zeep transport/parsing errors are transient-ish in practice.
+                if attempt >= attempts:
+                    raise TransportError(f"SOAP call failed after retries: {service}.{method}: {e}") from e
+                time.sleep(self.retry_backoff_seconds * attempt)
+
+        raise TransportError(f"SOAP call failed: {service}.{method}")
 
     def close(self) -> None:
         try:
