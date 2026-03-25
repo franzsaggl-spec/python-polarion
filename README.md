@@ -71,6 +71,9 @@ Optional:
 - `POLARION_PLAN_ID` (enables direct plan get smoke)
 - `POLARION_TESTRUN_ID` (enables direct test run get smoke)
 
+The happy-path integration flow is covered by:
+- `tests/integration/test_v3_live_happy_path.py`
+
 ## Public entrypoint
 
 ```python
