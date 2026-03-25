@@ -159,7 +159,7 @@ def test_call_with_fallback_uses_second_method(monkeypatch):
 
 def test_supports_method(monkeypatch):
     def fake_client(wsdl, transport):
-        return SimpleNamespace(service=DummyService({"ping": lambda **k: {"ok": True}}))
+        return SimpleNamespace(service=DummyService())
 
     monkeypatch.setattr("polarion.v3.transport.soap.Client", fake_client)
 
