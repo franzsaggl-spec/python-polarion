@@ -76,14 +76,7 @@ class WorkitemsService(ServiceBase):
             fields=fields or ["id", "title", "type", "status", "priority"],
         )
         items = parse_workitem_summary_list(raw)
-        sliced = items[offset : offset + limit]
-        return Page(
-            items=sliced,
-            total=len(items),
-            offset=offset,
-            limit=limit,
-            has_more=offset + len(sliced) < len(items),
-        )
+        return self.paginate(items, offset=offset, limit=limit)
 
     def available_actions(self, project_id: str, workitem_id: str) -> list[str]:
         raw = self.transport.call("Tracker", "getAvailableActions", projectId=project_id, id=workitem_id)

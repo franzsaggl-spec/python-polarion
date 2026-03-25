@@ -59,7 +59,7 @@ class DocumentsService(ServiceBase):
     def workitems(self, project_id: str, document_uri: str) -> Page[WorkitemSummary]:
         raw = self.transport.call("Tracker", "getModuleWorkItems", projectId=project_id, uri=document_uri)
         items = parse_workitem_summary_list(raw)
-        return Page(items=items, total=len(items), offset=0, limit=len(items), has_more=False)
+        return self.paginate(items, offset=0, limit=max(1, len(items)))
 
     def top_level_workitem(self, project_id: str, document_uri: str) -> WorkitemDetail:
         page = self.workitems(project_id, document_uri)
