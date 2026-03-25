@@ -68,9 +68,9 @@ class WorkitemsService(ServiceBase):
         scoped = f"project.id:{project_id}"
         if query:
             scoped = f"{scoped} AND ({query})"
-        raw = self.transport.call(
+        raw = self.transport.call_with_fallback(
             "Tracker",
-            "queryWorkItems",
+            ["queryWorkItems", "searchWorkItems"],
             query=scoped,
             sort=sort,
             fields=fields or ["id", "title", "type", "status", "priority"],
