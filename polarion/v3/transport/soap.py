@@ -47,9 +47,7 @@ class SoapTransport:
         try:
             client = Client(wsdl=self._service_wsdl(service), transport=transport)
         except (ZeepError, requests.RequestException, OSError) as e:
-            raise TransportError(
-                f"Failed to initialize SOAP client for {service}: {e}"
-            ) from e
+            raise TransportError(f"Failed to initialize SOAP client for {service}: {e}") from e
 
         self._clients[service] = client
         return client
@@ -72,9 +70,7 @@ class SoapTransport:
             else:
                 session_client.service.logIn(self.username, self.password)
         except (ZeepFault, ZeepError, requests.RequestException, OSError) as e:
-            raise AuthError(
-                f"Failed to authenticate SOAP session for user {self.username}: {e}"
-            ) from e
+            raise AuthError(f"Failed to authenticate SOAP session for user {self.username}: {e}") from e
 
         self._authenticated = True
 
@@ -93,28 +89,20 @@ class SoapTransport:
                 return fn(**kwargs)
             except ZeepFault as e:
                 # SOAP-level faults are not transient; fail fast.
-                raise TransportError(
-                    f"SOAP call failed: {service}.{method}: {e}"
-                ) from e
+                raise TransportError(f"SOAP call failed: {service}.{method}: {e}") from e
             except (requests.Timeout, requests.ConnectionError, OSError) as e:
                 if attempt >= attempts:
-                    raise TransportError(
-                        f"SOAP call failed after retries: {service}.{method}: {e}"
-                    ) from e
+                    raise TransportError(f"SOAP call failed after retries: {service}.{method}: {e}") from e
                 time.sleep(self.retry_backoff_seconds * attempt)
             except ZeepError as e:
                 # Some Zeep transport/parsing errors are transient-ish in practice.
                 if attempt >= attempts:
-                    raise TransportError(
-                        f"SOAP call failed after retries: {service}.{method}: {e}"
-                    ) from e
+                    raise TransportError(f"SOAP call failed after retries: {service}.{method}: {e}") from e
                 time.sleep(self.retry_backoff_seconds * attempt)
 
         raise TransportError(f"SOAP call failed: {service}.{method}")
 
-    def call_with_fallback(
-        self, service: str, methods: list[str], **kwargs: Any
-    ) -> Any:
+    def call_with_fallback(self, service: str, methods: list[str], **kwargs: Any) -> Any:
         """Try multiple SOAP methods in order and return first successful response."""
         errors: list[str] = []
         for method in methods:
@@ -123,11 +111,7 @@ class SoapTransport:
             except TransportError as e:
                 errors.append(f"{method}: {e}")
 
-        raise TransportError(
-            "SOAP call failed for all fallback methods on "
-            f"{service}: "
-            + "; ".join(errors)
-        )
+        raise TransportError(f"SOAP call failed for all fallback methods on {service}: " + "; ".join(errors))
 
     def supports_method(self, service: str, method: str) -> bool:
         """Check whether a SOAP method exists on a service without calling it."""
