@@ -73,6 +73,10 @@ Optional:
 from polarion import PolarionClient
 ```
 
+## API reference
+
+- See `docs/v3-api.md` for a service-by-service v3 API contract.
+
 ## License
 
 MIT
