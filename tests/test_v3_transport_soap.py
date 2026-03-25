@@ -8,8 +8,10 @@ from polarion.v3.transport.soap import SoapTransport
 
 
 class DummyService:
-    def __init__(self):
+    def __init__(self, methods=None):
         self.calls = []
+        for name, fn in (methods or {}).items():
+            setattr(self, name, fn)
 
     def logIn(self, user, password):
         self.calls.append(("logIn", user, password))
