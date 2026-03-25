@@ -21,23 +21,9 @@ class ProjectsService(ServiceBase):
         if query:
             q = query.lower()
             items = [p for p in items if q in p.id.lower() or q in p.name.lower()]
-        sliced = items[offset : offset + limit]
-        return Page(
-            items=sliced,
-            total=len(items),
-            offset=offset,
-            limit=limit,
-            has_more=offset + len(sliced) < len(items),
-        )
+        return self.paginate(items, offset=offset, limit=limit)
 
     def users(self, project_id: str, *, offset: int = 0, limit: int = 200) -> Page[UserRef]:
         raw = self.transport.call("Project", "getProjectUsers", projectId=project_id)
         items = parse_user_ref_list(raw)
-        sliced = items[offset : offset + limit]
-        return Page(
-            items=sliced,
-            total=len(items),
-            offset=offset,
-            limit=limit,
-            has_more=offset + len(sliced) < len(items),
-        )
+        return self.paginate(items, offset=offset, limit=limit)

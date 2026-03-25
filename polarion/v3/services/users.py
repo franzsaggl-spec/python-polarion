@@ -30,4 +30,4 @@ class UsersService(ServiceBase):
     def search(self, query: str | None = None, *, offset: int = 0, limit: int = 100) -> Page[User]:
         # Legacy API does not provide full user search endpoint.
         # For v3 initial implementation, this is intentionally empty.
-        return Page(items=[], total=0, offset=offset, limit=limit, has_more=False)
+        return self.paginate([], offset=offset, limit=limit)
